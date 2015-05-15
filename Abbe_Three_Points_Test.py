@@ -142,16 +142,20 @@ class Abbe_Three_Points_Test(object):
 		_prioritize_left_hand = True
 		print "x_per is: " + str(x_per)
 
-		if(x_per < 0.5):
+		if(x_per > 0.5):
 			_prioritize_left_hand = False
 		print "going to " + str(_tmp_x) + " " + str(_tmp_y)
 		if _prioritize_left_hand:
+			print "priority left due to " + str(x_per)
 			if(not self._ik.set_left(_tmp_x,_tmp_y,0.0)):
+				print "left failed trying right..."
 				if(not self._ik.set_right(_tmp_x,_tmp_y,0.0)):
 					print "neither arm code reach position: x:" + str(_tmp_x) + " y: " + str(_tmp_y)
 					return False
 		else:
+			print "priority right due to " + str(x_per)
 			if(not self._ik.set_right(_tmp_x,_tmp_y,0.0)):
+				print "right failed trying left..."
 				if(not self._ik.set_left(_tmp_x,_tmp_y,0.0)):
 					print "neither arm code reach position: x:" + str(_tmp_x) + " y: " + str(_tmp_y)
 					return False		

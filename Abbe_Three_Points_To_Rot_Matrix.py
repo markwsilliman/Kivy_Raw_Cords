@@ -70,9 +70,9 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 		_tmp_change_in_x = self._cords[1][0] - self._cords[0][0]
 		_tmp_change_in_y = self._cords[1][1] - self._cords[0][1]
 
-		if _tmp_change_in_x <= 0.05:
+		if _tmp_change_in_x <= 0.005:
 			if(self._print_test_output):
-				print "X didn't change sufficiantly"
+				print "X didn't change sufficiantly: " + str(_tmp_change_in_x)
 			return False
 
 		#determine angle of slope and rotational matrix
