@@ -9,6 +9,8 @@ import sys
 from abbe_ik import Abbe_IK
 import threading
 import Tkinter as tk
+import json
+import time
 
 from geometry_msgs.msg import (
     PoseStamped,
@@ -40,6 +42,8 @@ class Abbe_Three_Points_Test(object):
 	_tkinter = False
 	_move_left_arm = True
 	_move_arm_offset = 0.1
+	_last_move_to_file_x = False
+	_last_move_to_file_y = False
 
 	def __init__(self):
 		self._tkinter = tk.Tk()
@@ -50,12 +54,13 @@ class Abbe_Three_Points_Test(object):
 		self._abbe_three_points_matrix = Abbe_Three_Points_To_Rot_Matrix()
 		self._navigator_io = baxter_interface.Navigator('left')
 		self._navigator_io_r = baxter_interface.Navigator('right')
-		self._navigator_io.button0_changed.connect(self._savepoint_button_was_pressed_left)
-		self._navigator_io_r.button0_changed.connect(self._savepoint_button_was_pressed_right)
 		self._navigator_io.button1_changed.connect(self._button1_was_pressed)
 
 		#mainloop must be at bottom of init
 		self._tkinter.mainloop()
+		while not rospy.is_shutdown():
+			self.go_to_position_in_file()
+			time.sleep(1)
 
 	def _onKeypress(self,event):
 		_c = event.char
@@ -67,6 +72,8 @@ class Abbe_Three_Points_Test(object):
 			self._move_arm_offset = 0.03
 		if _c == 'b':
 			self._move_arm_offset = 0.01
+		if _c == 'm':
+			self.save_point()
 
 		if(not (_c == 'w' or _c == 'a' or _c == 's' or _c == 'd')):
 			 return False
@@ -88,7 +95,7 @@ class Abbe_Three_Points_Test(object):
 		if _c == 's':
 			x = x - self._move_arm_offset
 		
-
+		print "moving..."
 		if(self._move_left_arm):
 			if not self._ik.set_left(float(x),float(y),float(pose.z)):
 				print "left failed to point down at pose"
@@ -119,17 +126,14 @@ class Abbe_Three_Points_Test(object):
 			while(_tmp >= 0):
 				self.go_to_relative_position(_tmp,0)
 				_tmp = _tmp - 0.05
-			
 
-	def _savepoint_button_was_pressed_left(self, value):
-		if value:
+	def save_point(self):
+		if self._move_left_arm:
 			self._move_left_arm = False
 			_pos = self._ik.get_pose('left')
 			print "saved"
-			self._abbe_three_points_matrix.add_cord(_pos.x,_pos.y)
-
-	def _savepoint_button_was_pressed_right(self, value):
-		if value:
+			self._abbe_three_points_matrix.add_cord(_pos.x,_pos.y)			
+		else:
 			_pos = self._ik.get_pose('right')
 			print "saved"
 			self._abbe_three_points_matrix.add_cord(_pos.x,_pos.y)
@@ -137,6 +141,15 @@ class Abbe_Three_Points_Test(object):
 	def go_to_relative_position(self,x_per,y_per):
 		pos = self._abbe_three_points_matrix.determine_a_relative_point(x_per,y_per)
 		return self._go_to_position(pos[0],pos[1],x_per)
+
+	def go_to_position_in_file(self):
+		with open('kivy_touch_down_log.json') as data_file: 
+			data = json.load(data_file)
+			#has the position changed?
+			if(self._last_move_to_file_x != data[0] or self._last_move_to_file_y != data[1]):
+				self._last_move_to_file_x = data[0]
+				self._last_move_to_file_y = data[1]
+				self.go_to_relative_position(float(data[0]),float(data[1]))
 
 	def _go_to_position(self,_tmp_x,_tmp_y,x_per):
 		_prioritize_left_hand = True
