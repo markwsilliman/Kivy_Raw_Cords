@@ -16,12 +16,18 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 	_rotMatrix = False
 	_length_of_x_slope = False
 	_length_of_y_slope = False
-	_print_test_output = False
+	_print_test_output = True
+	_origin_x = False
+	_origin_y = False
 
 	def __init__(self):
 		pass
 
 	def add_cord(self,x,y):
+		if len(self._cords) == 0:
+			self._origin_x = float(x)
+			self._origin_y = float(y)
+	
 		if len(self._cords) > 3:
 			if(self._print_test_output):
 				print "3 cords already exist"
@@ -122,12 +128,8 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 			print "Post Rotated X"
 			print str(round(post_rotated_matrix[0][0],3))		
 			print "Post Rotated Y"
-			print str(round(post_rotated_matrix[1][0],3))				
-		return post_rotated_matrix
+			print str(round(post_rotated_matrix[1][0],3))			
 
-if __name__ == '__main__':
-	n = Abbe_Three_Points_To_Rot_Matrix()
-	n.add_cord(0,0)
-	n.add_cord(4,4)
-	n.add_cord(0,8)
-	print n.determine_a_relative_point(0.1,0.2)
+		##_origin_x
+		post_rotated_matrix_adjust_with_origin_values = [post_rotated_matrix[0][0] + self._origin_x,post_rotated_matrix[1][0]+self._origin_y]
+		return post_rotated_matrix_adjust_with_origin_values
