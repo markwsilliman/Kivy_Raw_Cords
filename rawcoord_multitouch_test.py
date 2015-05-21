@@ -11,14 +11,18 @@ from kivy.vector import Vector
 from kivy.clock import Clock
 from kivy.core.window import Window
 import json
+from kivy.graphics import *
 
 class RawCord(Widget):
 
     def on_touch_down(self, touch):
-	data = [str(float(touch.x) / float(Window.size[0])),str(float(touch.y) / float(Window.size[1]))]
+	with self.canvas:
+		Rectangle(pos=(touch.x,touch.y), size=(10,10))
+	#remove next line
+	return True
+
 	with open('kivy_touch_down_multitouch_log.json', 'a') as outfile:
-	    json.dump(data, outfile)
-	    outfile.write("\n")
+	    outfile.write(str(float(touch.x) / float(Window.size[0])) + "," + str(float(touch.y) / float(Window.size[1])) + "\n")
 
     def on_touch_up(self, touch):
 	pass
