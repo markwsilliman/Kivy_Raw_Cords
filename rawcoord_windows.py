@@ -1,4 +1,5 @@
 import kivy
+import urllib.request
 kivy.require('1.1.1')
 
 from kivy.app import App
@@ -19,7 +20,10 @@ class RawCord(Widget):
 	def on_touch_down(self, touch):
 		with self.canvas:
 			Rectangle(pos=(touch.x,touch.y - 25), size=(2,2))
-	
+			x_per = float(touch.x) / float(1920)
+			y_per = float(touch.y) / float(1080)
+				html = response.read()
+			
 class RawCordApp(App):
 	def build(self):
 		g = RawCord()
