@@ -12,6 +12,7 @@ from kivy.core.window import Window
 import json
 from kivy.graphics import *
 from kivy.config import Config
+from random import randint
 Config.set('graphics', 'width', '1920')
 Config.set('graphics', 'height', '1080')
 
@@ -19,8 +20,8 @@ class RawCord(Widget):
 	
 	def on_touch_down(self, touch):
 		with self.canvas:
-			Color(1., 1., 1.)
-			Rectangle(pos=(touch.x,touch.y - 25), size=(2,2))
+			Color(float(randint(3,10)/10), float(randint(3,10)/10), float(randint(3,10)/10))
+			Rectangle(pos=(touch.x - 150,touch.y - 25 - 150), size=(300,300))
 			x_per = float(touch.x) / float(1920)
 			y_per = float(touch.y) / float(1080)
 			with urllib.request.urlopen('http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_api.php?touch_api_x=' + str(x_per) + '&touch_api_y=' + str(y_per) + '&touch_api_type=1') as response:
@@ -28,8 +29,8 @@ class RawCord(Widget):
 				
 	def on_touch_up(self, touch):
 		with self.canvas:
-			Color(1., 1., 0)
-			Rectangle(pos=(touch.x,touch.y - 25), size=(2,2))
+			Color(0, 0, 0)
+			Rectangle(pos=(touch.x - 150,touch.y - 25 - 150), size=(300,300))
 			x_per = float(touch.x) / float(1920)
 			y_per = float(touch.y) / float(1080)
 			with urllib.request.urlopen('http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_api.php?touch_api_x=' + str(x_per) + '&touch_api_y=' + str(y_per) + '&touch_api_type=2') as response:
