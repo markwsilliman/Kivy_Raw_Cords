@@ -16,7 +16,7 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 	_rotMatrix = False
 	_length_of_x_slope = False
 	_length_of_y_slope = False
-	_print_test_output = True
+	_print_test_output = False
 	_origin_x = False
 	_origin_y = False
 
@@ -25,8 +25,9 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 
 	def add_cord(self,x,y):
 		if len(self._cords) == 0:
-			self._origin_x = float(x)
-			self._origin_y = float(y)
+			#intentionally backwards because it's relative to screen.  Not robot
+			self._origin_x = float(y)
+			self._origin_y = float(x)
 	
 		if len(self._cords) > 3:
 			if(self._print_test_output):
@@ -49,16 +50,10 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 			if(self._print_test_output):
 				print "you don't have 3 cords yet"
 			return False
-		
-		if self._cords[0][0] >= self._cords[1][0]:
-			if(self._print_test_output):
-				print "x values of point 0 & 1 are inverse order"
-			return False
-		
-		if self._cords[2][1] <= self._cords[1][1]:
-			if(self._print_test_output):
-				print "y values of point 1 & 2 are inverse order"
-			return False
+
+		#print "QCing coordinates as shown below"
+		#print self._cords
+		#print "Press u to go around the parameter of the screen"
 
 		return True
 			
@@ -67,13 +62,19 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 		if not self.qc_cords():
 			return False
 
-		_tmp_change_in_x = self._cords[1][0] - self._cords[0][0]
-		_tmp_change_in_y = self._cords[1][1] - self._cords[0][1]
+		#y is perp to robot.  x is away so reverse these for relative
+		#y gets greater moving to left. x gets greater moving away
+		_tmp_change_in_x = self._cords[0][1] - self._cords[1][1] #farther left is positive
+		_tmp_change_in_y = self._cords[1][0] - self._cords[0][0]
 
 		if _tmp_change_in_x <= 0.005:
 			if(self._print_test_output):
 				print "X didn't change sufficiantly: " + str(_tmp_change_in_x)
 			return False
+
+		if(self._print_test_output):
+			print "change in x: " + str(_tmp_change_in_x)
+			print "change in y: " + str(_tmp_change_in_y)
 
 		#determine angle of slope and rotational matrix
 		_tmp_slope = _tmp_change_in_y / _tmp_change_in_x
@@ -113,7 +114,10 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 		if not self.qc_cords():
 			return False
 
+		#relative to screen!
 		pre_rotated_x = float(x_per) * float(self._length_of_x_slope)
+		#1 - y_per is because right is positive
+		#TODO x & y are reversed?
 		pre_rotated_y = float(y_per) * float(self._length_of_y_slope)
 
 		if(self._print_test_output):
@@ -131,5 +135,5 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 			print str(round(post_rotated_matrix[1][0],3))			
 
 		##_origin_x
-		post_rotated_matrix_adjust_with_origin_values = [post_rotated_matrix[0][0] + self._origin_x,post_rotated_matrix[1][0]+self._origin_y]
+		post_rotated_matrix_adjust_with_origin_values = [post_rotated_matrix[1][0]+self._origin_y, self._origin_x - post_rotated_matrix[0][0]] # self._origin_x - is because origin x is max value (of robot's y)
 		return post_rotated_matrix_adjust_with_origin_values
