@@ -8,6 +8,8 @@
 
 import math
 import numpy
+import pickle
+import os.path
 
 class Abbe_Three_Points_To_Rot_Matrix(object):
 	_cords = []
@@ -21,7 +23,7 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 	_origin_y = False
 
 	def __init__(self):
-		pass
+		self._import_config_file_if_exists()
 
 	def add_cord(self,x,y):
 		if len(self._cords) == 0:
@@ -42,7 +44,25 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 
 		if len(self._cords) == 3:
 			#after 3rd point is added calc rot matrix
+			self._save_three_cords_to_config_file()
 			self.calc_cord_positions()
+
+	def _config_file_path(self):
+		return "/home/mark/PycharmProjects/Kivy_Raw_Cords/threepoints.config"
+
+	def _import_config_file_if_exists(self):
+		#does the config file exist
+		if(os.path.isfile(self._config_file_path())):
+			with open(self._config_file_path(), 'rb') as input:
+				self._cords = pickle.load(input)
+				print "Config file imported"
+				self._origin_x = self._cords[0][1]
+				self._origin_y = self._cords[0][0]
+				self.calc_cord_positions()
+
+	def _save_three_cords_to_config_file(self):
+		with open(self._config_file_path(),"w+") as output:
+			pickle.dump(self._cords, output, pickle.HIGHEST_PROTOCOL)
 
 	def qc_cords(self):
 		#determine angle
@@ -56,7 +76,10 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 		#print "Press u to go around the parameter of the screen"
 
 		return True
-			
+
+	def calc_relative_radians_angle(self,rad):
+		#TODO haven't tested if the slope_in_radians should be added or subtracted
+		return (float(self._slope_in_radians) + float(rad))
 
 	def calc_cord_positions(self):
 		if not self.qc_cords():
@@ -79,8 +102,8 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 		#determine angle of slope and rotational matrix
 		_tmp_slope = _tmp_change_in_y / _tmp_change_in_x
 		self._slope_in_radians = math.atan(_tmp_slope)
-		if(self._print_test_output):
-			print "degrees: " + str(math.degrees(self._slope_in_radians))
+		#if(self._print_test_output):
+		print "degrees: " + str(math.degrees(self._slope_in_radians))
 
 		self._rotMatrix = numpy.array([[numpy.cos(self._slope_in_radians), -numpy.sin(self._slope_in_radians)],
 					      [numpy.sin(self._slope_in_radians), numpy.cos(self._slope_in_radians)]])
