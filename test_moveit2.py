@@ -56,8 +56,15 @@ class testmoveit2:
         p.header.frame_id = self.robot.get_planning_frame()
         p.pose.position.x = 0.88
         p.pose.position.y = 0
-        p.pose.position.z = -0.3975
+        p.pose.position.z = -0.175 - (0.795/2)
         self.scene.add_box("table", p, (0.72, 1.2, 0.795))
+
+        p = PoseStamped()
+        p.header.frame_id = self.robot.get_planning_frame()
+        p.pose.position.x = 0.88
+        p.pose.position.y = 0
+        p.pose.position.z = -0.175 + (0.095 / 2)
+        self.scene.add_box("cup", p, (0.08, 0.14, 0.095))
 
 
     def testmove(self):
