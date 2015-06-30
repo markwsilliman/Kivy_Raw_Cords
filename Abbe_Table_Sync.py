@@ -120,9 +120,15 @@ class Abbe_Table_Sync(object):
 			time.sleep(3)
 			self._grippers.open(True)
 		if _c == '4':
-			print "will open in 5 seconds"
+			print "will close in 5 seconds"
 			time.sleep(5)
 			self._grippers.close(True)
+		if _c == '5':
+			print "go to leading point"
+			self.go_to_leading_point()
+		if _c == '6':
+			print "draw leading point"
+			self.draw_leading_point()
 		if _c == '9':
 			self.pickup_object()
 
@@ -218,6 +224,26 @@ class Abbe_Table_Sync(object):
 		try:
 			self.go_to_relative_position(float(data["x"]),float(data["y"]),True)
 			self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
+		except:
+			print "last object is false"
+
+	def go_to_leading_point(self):
+		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object_rviz.php"
+		response = urllib.urlopen(url)
+		data = json.loads(response.read())
+		try:
+			self.go_to_relative_position(float(data["x"]),float(data["y"]),True)
+		except:
+			print "last object is false"
+
+	def draw_leading_point(self):
+		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object_rviz.php"
+		response = urllib.urlopen(url)
+		data = json.loads(response.read())
+		try:
+			tmp_pos = self._abbe_three_points_matrix.determine_a_relative_point(float(data["x"]),float(data["y"]))
+			print tmp_pos
+			#data["orientation_in_radians"]
 		except:
 			print "last object is false"
 
