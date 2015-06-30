@@ -108,14 +108,20 @@ class Abbe_Table_Sync(object):
 		if _c == '0':
 			self._point_arms_straight_down()
 		if _c == '1':
+			print "will open in 3 seconds"
+			time.sleep(3)
 			self._grippers.open(False)
 		if _c == '2':
+			print "will close in 5 seconds"
+			time.sleep(5)
 			self._grippers.close(False)
 		if _c == '3':
-			print "will open in  seconds"
+			print "will open in 3 seconds"
 			time.sleep(3)
 			self._grippers.open(True)
 		if _c == '4':
+			print "will open in 5 seconds"
+			time.sleep(5)
 			self._grippers.close(True)
 		if _c == '9':
 			self.pickup_object()

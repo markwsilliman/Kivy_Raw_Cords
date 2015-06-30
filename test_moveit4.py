@@ -66,8 +66,15 @@ class testmoveit2:
         p.pose.position.x = 0.88
         p.pose.position.y = 0
         p.pose.position.z = -0.175 + (0.095 / 2)
+        quaternion = tf.transformations.quaternion_from_euler(0, 0, 0.5) #roll, pitch, yaw
+        p.pose.orientation.x = quaternion[0]
+        p.pose.orientation.y = quaternion[1]
+        p.pose.orientation.z = quaternion[2]
+        p.pose.orientation.w = quaternion[3]
+
         self.scene.add_box("cup", p, (0.08, 0.14, 0.095)) #z should be0.095
 
+        '''
         p = PoseStamped();
         p.header.frame_id = "right_gripper"
         p.pose.position = Point(*[0,0,0.025])
@@ -79,14 +86,14 @@ class testmoveit2:
         p.pose.position = Point(*[0,0,0.025])
         p.pose.orientation = Quaternion(*[0,0,0,1])
         self.scene.attach_box("left_gripper","my_attached_gripper_left",p,(0.07,0.1,0.12))
-
+        '''
         print "Map Done"
 
 
     def testmove(self):
         print "Let's Move"
-        self.rightHand.set_goal_position_tolerance(0.02)
-        self.rightHand.set_goal_orientation_tolerance(0.03)
+        self.rightHand.set_goal_position_tolerance(0.09) #0.02
+        self.rightHand.set_goal_orientation_tolerance(0.09) #0.03
         self.rightHand.allow_replanning(True)
 
         quaternion = tf.transformations.quaternion_from_euler(0, math.pi, 0.0)
