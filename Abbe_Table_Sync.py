@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Note these must be running!
+# rosrun baxter_interface joint_trajectory_action_server.py
+# roslaunch baxter_moveit_config demo_baxter.launch
 
 import math
 import random
@@ -6,20 +9,27 @@ import rospy
 import argparse
 import struct
 import sys
+import numpy
+import cv2
+import tf
+import copy
 from abbe_ik import Abbe_IK
 import threading
 import Tkinter as tk
 import json
+import moveit_commander
 import time
 import urllib, json
 from abbe_gripper import Abbe_Gripper
 
-from geometry_msgs.msg import (
-    PoseStamped,
-    Pose,
-    Point,
-    Quaternion,
+from moveit_msgs.msg import (
+    AttachedCollisionObject,
+    CollisionObject,
+    PlanningScene,
+    Grasp,
+    GripperTranslation,
 )
+
 
 from tf import transformations
 from std_msgs.msg import Header, UInt16
@@ -28,6 +38,17 @@ from geometry_msgs.msg import (
     Pose,
     Point,
     Quaternion,
+	Polygon,
+	Vector3,
+    Vector3Stamped
+)
+
+import yaml
+
+
+from trajectory_msgs.msg import(
+    JointTrajectory,
+    JointTrajectoryPoint
 )
 
 import baxter_interface
