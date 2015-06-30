@@ -71,6 +71,7 @@ class Abbe_Table_Sync(object):
 	_grippers = False
 	_ik = False
 	_right_arm_rotation = 0
+	_object_count = 0
 
 	def __init__(self):
 		self._ik = Abbe_IK()
@@ -90,6 +91,15 @@ class Abbe_Table_Sync(object):
 		print "Move with W,A,S,D like an old school video game";
 		print "Save Pose... M";
 
+		#move it
+		self.robot = moveit_commander.RobotCommander()
+		self.scene = moveit_commander.PlanningSceneInterface()
+
+		print "sleeping for 2 seconds for moveit scene"
+		rospy.sleep(2)
+
+		self.draw_table_in_rviz()
+
 		self._ik = Abbe_IK()
 		self._abbe_three_points_matrix = Abbe_Three_Points_To_Rot_Matrix()
 		self._navigator_io = baxter_interface.Navigator('left')
@@ -101,6 +111,15 @@ class Abbe_Table_Sync(object):
 		while not rospy.is_shutdown():
 			self.go_to_position_in_file()
 			time.sleep(1)
+
+	def draw_table_in_rviz(self):
+		p = PoseStamped()
+		thickness_of_table = 0.025 #was 0.795
+		p.header.frame_id = self.robot.get_planning_frame()
+		p.pose.position.x = 0.28 + (0.72/2)
+		p.pose.position.y = 0
+		p.pose.position.z = -0.175 - (thickness_of_table/2)
+		self.scene.add_box("table",p,(0.72, 1.2, thickness_of_table))
 
 	def _onKeypress(self,event):
 		_c = event.char
@@ -261,10 +280,28 @@ class Abbe_Table_Sync(object):
 		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object_rviz.php"
 		response = urllib.urlopen(url)
 		data = json.loads(response.read())
+
+		p = PoseStamped()
+		p.header.frame_id = self.robot.get_planning_frame()
+
+		p.pose.position.z = -0.175 + (0.095 / 2)
+
 		try:
 			tmp_pos = self._abbe_three_points_matrix.determine_a_relative_point(float(data["x"]),float(data["y"]))
-			print tmp_pos
-			#data["orientation_in_radians"]
+			p.pose.position.x = tmp_pos[0]
+			p.pose.position.y = tmp_pos[1]
+
+			quaternion = tf.transformations.quaternion_from_euler(0,0,data["orientation_in_radians"])
+
+			p.pose.orientation.x = quaternion[0]
+			p.pose.orientation.y = quaternion[1]
+			p.pose.orientation.z = quaternion[2]
+			p.pose.orientation.w = quaternion[3]
+
+
+			self.scene.add_box("cup" + str(self._object_count),p,(0.08, 0.14, 0.095)) #0.72 ... is the size of the object
+			self._object_count = self._object_count + 1
+
 		except:
 			print "last object is false"
 
