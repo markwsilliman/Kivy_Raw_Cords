@@ -71,6 +71,7 @@ class Abbe_Table_Sync(object):
 	_ik = False
 	_right_arm_rotation = 0
 	_object_count = 0
+	_object_already_added_to_moveit = []
 
 	def __init__(self):
 		self._ik = Abbe_IK()
@@ -92,6 +93,28 @@ class Abbe_Table_Sync(object):
 
 		self._require_configuration()
 		#note: if the config file doesn't exist yet the init() script will never get past this point
+
+	def _check_for_new_object_on_table(self):
+		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object.php"
+		response = urllib.urlopen(url)
+		data = json.loads(response.read())
+		try:
+			x = float(data["x"])
+			y = float(data["y"])
+
+			pose = [x,y]
+			if pose in self._object_already_added_to_moveit:
+				print "check for new object: already imported"
+			else:
+				self._object_already_added_to_moveit.append(pose)
+				#read the RFID
+				self.go_to_relative_position(float(data["x"]),float(data["y"]),True)
+				self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
+
+				#TODO check for new RFID value and import everything to moveit
+
+		except:
+			print "check for new object: last object is false"
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
