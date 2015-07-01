@@ -75,20 +75,8 @@ class Abbe_Table_Sync(object):
 	def __init__(self):
 		self._ik = Abbe_IK()
 
-		self._point_arms_straight_down()
-
 		print "enabling grippers"
 		self._grippers = Abbe_Gripper()
-		print "Opening TkInter window to capture key strokes.  Make sure it stays in focus."
-		self._tkinter = tk.Tk()
-		#Size doesn't matter
-		self._tkinter.geometry('300x200')
-		#On each keypress call _onKeypress function
-		self._tkinter.bind('<KeyPress>', self._onKeypress)
-		print "Moving left arm first.  Set to orientation 0,0 on screen.";
-		print "Movement Speed... T: fast, G: Medium, B: Slow";
-		print "Move with W,A,S,D like an old school video game";
-		print "Save Pose... M";
 
 		#move it
 		self.robot = moveit_commander.RobotCommander()
@@ -101,15 +89,28 @@ class Abbe_Table_Sync(object):
 
 		self._ik = Abbe_IK()
 		self._abbe_three_points_matrix = Abbe_Three_Points_To_Rot_Matrix()
-		self._navigator_io = baxter_interface.Navigator('left')
-		self._navigator_io_r = baxter_interface.Navigator('right')
 
-		#mainloop must be at bottom of init
-		self._tkinter.mainloop()
+		self._require_configuration()
+		#note: if the config file doesn't exist yet the init() script will never get past this point
 
-		while not rospy.is_shutdown():
-			self.go_to_position_in_file()
-			time.sleep(1)
+	def _require_configuration(self):
+		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
+		if not self._abbe_three_points_matrix.does_config_file_exist():
+			#TkInter is just an easy way to capture key stroaks in python.
+			self._point_arms_straight_down()
+			print "Opening TkInter window to capture key strokes.  Make sure it stays in focus."
+			self._tkinter = tk.Tk()
+			#Size doesn't matter
+			self._tkinter.geometry('300x200')
+			#On each keypress call _onKeypress function
+			self._tkinter.bind('<KeyPress>', self._onKeypress)
+
+			#instructions on how to configure robot
+			print "Moving left arm first.  Set to orientation 0,0 (relative to the robot, bottom, left corner of screen) on screen.";
+			print "Movement Speed... T: fast, G: Medium, B: Slow";
+			print "Move with W,A,S,D like an old school video game";
+			print "Save Pose... M";
+			self._tkinter.mainloop()
 
 	def draw_table_in_rviz(self):
 		p = PoseStamped()
@@ -321,15 +322,6 @@ class Abbe_Table_Sync(object):
 		except:
 			print "last object is false"
 
-	def go_to_position_in_file(self):
-		with open('kivy_touch_down_log.json') as data_file: 
-			data = json.load(data_file)
-			#has the position changed?
-			if(self._last_move_to_file_x != data[0] or self._last_move_to_file_y != data[1]):
-				self._last_move_to_file_x = data[0]
-				self._last_move_to_file_y = data[1]
-				self.go_to_relative_position(float(data[0]),float(data[1]))
-
 	def _go_to_position(self,_tmp_x,_tmp_y,x_per, force_right = False, force_left = False):
 		_prioritize_left_hand = True
 
@@ -404,7 +396,7 @@ class Abbe_Table_Sync(object):
 
 	def _point_arms_straight_down(self):
 
-		print "End effectors must point down for calibration... sleeping for 2 seconds to make sure IK is live"
+		#print "End effectors must point down for calibration... sleeping for 2 seconds to make sure IK is live"
 		time.sleep(2)
 		pose = self._ik.get_pose('left')
 
@@ -423,4 +415,3 @@ class Abbe_Table_Sync(object):
 if __name__ == '__main__':
     rospy.init_node('Abbe_Table_Sync', anonymous=True)
     at = Abbe_Table_Sync()
-    rospy.spin()

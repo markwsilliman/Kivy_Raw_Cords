@@ -12,6 +12,7 @@ import math
 import numpy
 import pickle
 import os.path
+import sys
 
 class Abbe_Three_Points_To_Rot_Matrix(object):
 	_cords = []
@@ -53,6 +54,11 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 	def _config_file_path(self):
 		return os.path.dirname(os.path.realpath(__file__)) + "/threepoints.config"
 
+	def does_config_file_exist(self):
+		if(os.path.isfile(self._config_file_path())):
+			return True
+		return False
+
 	def _import_config_file_if_exists(self):
 		#does the config file exist
 		if(os.path.isfile(self._config_file_path())):
@@ -66,6 +72,8 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 	def _save_three_cords_to_config_file(self):
 		with open(self._config_file_path(),"w+") as output:
 			pickle.dump(self._cords, output, pickle.HIGHEST_PROTOCOL)
+		print "Config file saved.  Please exit this program and restart it (next time it'll load the .config file and disable TkInter)"
+		sys.exit()
 
 	def qc_cords(self):
 		#determine angle
@@ -101,8 +109,8 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 		#determine angle of slope and rotational matrix
 		_tmp_slope = _tmp_change_in_y / _tmp_change_in_x
 		self._slope_in_radians = math.atan(_tmp_slope)
-		#if(self._print_test_output):
-		print "degrees: " + str(math.degrees(self._slope_in_radians))
+		if(self._print_test_output):
+			print "degrees: " + str(math.degrees(self._slope_in_radians))
 
 		self._rotMatrix = numpy.array([[numpy.cos(self._slope_in_radians), -numpy.sin(self._slope_in_radians)],
 					      [numpy.sin(self._slope_in_radians), numpy.cos(self._slope_in_radians)]])
