@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-# Note these must be running!
-# rosrun baxter_interface joint_trajectory_action_server.py
+# Note the following must be running in a different tab and Baxter must be enabled
 # roslaunch baxter_moveit_config demo_baxter.launch
 
 import math
