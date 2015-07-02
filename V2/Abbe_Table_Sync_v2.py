@@ -59,6 +59,7 @@ from sensor_msgs.msg import Range
 from Abbe_Three_Points_To_Rot_Matrix import Abbe_Three_Points_To_Rot_Matrix
 
 class Abbe_Table_Sync(object):
+	_server = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com" #CHANGE THIS TO YOUR SERVER'S DOMAIN
 	_abbe_three_points_matrix = False
 	_ik = False
 	_tkinter = False
@@ -94,8 +95,12 @@ class Abbe_Table_Sync(object):
 		self._require_configuration()
 		#note: if the config file doesn't exist yet the init() script will never get past this point
 
+		while not rospy.is_shutdown():
+			self._check_for_new_object_on_table()
+			time.sleep(5)
+
 	def _check_for_new_object_on_table(self):
-		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object.php"
+		url = self._server + "/touch_json_last_object.php"
 		response = urllib.urlopen(url)
 		data = json.loads(response.read())
 		try:
@@ -112,6 +117,8 @@ class Abbe_Table_Sync(object):
 				self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
 
 				#TODO check for new RFID value and import everything to moveit
+				self.draw_leading_point(data["x"],data["y"],data["orientation_in_radians"])
+				self._get_right_arm_out_of_the_way()
 
 		except:
 			print "check for new object: last object is false"
@@ -189,9 +196,6 @@ class Abbe_Table_Sync(object):
 		if _c == '5':
 			print "go to leading point"
 			self.go_to_leading_point()
-		if _c == '6':
-			print "draw leading point"
-			self.draw_leading_point()
 		if _c == '9':
 			self.pickup_object()
 
@@ -281,7 +285,7 @@ class Abbe_Table_Sync(object):
 		return self._go_to_position(pos[0],pos[1],x_per,force_right,force_left)
 
 	def go_to_front_point_of_last_object_for_rfid(self):
-		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object.php"
+		url = self._server + "/touch_json_last_object.php"
 		response = urllib.urlopen(url)
 		data = json.loads(response.read())
 		try:
@@ -291,7 +295,7 @@ class Abbe_Table_Sync(object):
 			print "last object is false"
 
 	def go_to_leading_point(self):
-		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object_rviz.php"
+		url = self._server + "/touch_json_last_object_rviz.php"
 		response = urllib.urlopen(url)
 		data = json.loads(response.read())
 		try:
@@ -299,10 +303,7 @@ class Abbe_Table_Sync(object):
 		except:
 			print "last object is false"
 
-	def draw_leading_point(self):
-		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object_rviz.php"
-		response = urllib.urlopen(url)
-		data = json.loads(response.read())
+	def draw_leading_point(self,x,y,orientation_in_radians):
 
 		p = PoseStamped()
 		p.header.frame_id = self.robot.get_planning_frame()
@@ -310,11 +311,11 @@ class Abbe_Table_Sync(object):
 		p.pose.position.z = -0.175 + (0.095 / 2)
 
 		try:
-			tmp_pos = self._abbe_three_points_matrix.determine_a_relative_point(float(data["x"]),float(data["y"]))
+			tmp_pos = self._abbe_three_points_matrix.determine_a_relative_point(float(x),float(y))
 			p.pose.position.x = tmp_pos[0]
 			p.pose.position.y = tmp_pos[1]
 
-			quaternion = tf.transformations.quaternion_from_euler(0,0,data["orientation_in_radians"])
+			quaternion = tf.transformations.quaternion_from_euler(0,0,orientation_in_radians)
 
 			p.pose.orientation.x = quaternion[0]
 			p.pose.orientation.y = quaternion[1]
@@ -326,10 +327,10 @@ class Abbe_Table_Sync(object):
 			self._object_count = self._object_count + 1
 
 		except:
-			print "last object is false"
+			print "draw_leading_point: failed"
 
 	def pickup_object(self):
-		url = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com/touch_json_last_object_pickup.php"
+		url = self._server + "/touch_json_last_object_pickup.php"
 		response = urllib.urlopen(url)
 		data = json.loads(response.read())
 		try:
@@ -416,6 +417,13 @@ class Abbe_Table_Sync(object):
 			print "Left arm failed to drop"
 			if not self._ik.set_left_down_for_pickup(float(pose.x),float(pose.y),-0.05,0,orient_radians - math.pi):
 				print "Left arm failed to drop"
+
+	def _get_right_arm_out_of_the_way(self):
+		pose = self._ik.get_pose('right')
+		if not self._ik.set_right(float(pose.x),float(pose.y),self._default_height()):
+			print "couldnt go up first"
+		if not self._ik.set_right(float(0.5),float(-0.5),self._default_height()):
+			print "couldnt go out of the way first"
 
 	def _point_arms_straight_down(self):
 
