@@ -20,6 +20,7 @@ import moveit_commander
 import time
 import urllib, json
 from abbe_gripper import Abbe_Gripper
+from abbe_emotion import Abbe_Emotions
 
 from moveit_msgs.msg import (
     AttachedCollisionObject,
@@ -76,12 +77,18 @@ class Abbe_Table_Sync(object):
 	_last_object_type = False
 	_last_object_pose = False
 	_last_object_pickup = False
+	_abbe_emotions = False
+	_head = False
 
 	def __init__(self):
 		self._ik = Abbe_IK()
+		self._abbe_emotions = Abbe_Emotions()
 
 		print "enabling grippers"
 		self._grippers = Abbe_Gripper()
+
+		self._head = baxter_interface.Head()
+
 
 		#move it
 		self.robot = moveit_commander.RobotCommander()
@@ -89,6 +96,8 @@ class Abbe_Table_Sync(object):
 
 		print "sleeping for 2 seconds for moveit scene"
 		rospy.sleep(2)
+		self._head.command_nod()
+		print "noded"
 
 		self.draw_table_in_rviz()
 
@@ -117,19 +126,23 @@ class Abbe_Table_Sync(object):
 			else:
 				self._object_already_added_to_moveit.append(pose)
 				#read the RFID
+
+				self._head.set_pan(-0.7)
+
 				self.go_to_relative_position(float(data["x"]),float(data["y"]),True)
 				self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
 
 				#TODO check for new RFID value and import everything to moveit
 
-				#Move the right arm out of the way
-				self.move_right_arm_up_with_same_radians_and_xy(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
-				self._get_right_arm_out_of_the_way()
-
 				#Detect everything there is to know about the object
 				self._objectapi()
 				#Draw the object in RVIZ
 				self.draw_collision_object_in_rviz()
+
+				#Move the right arm out of the way
+				self.move_right_arm_up_with_same_radians_and_xy(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
+				self._get_right_arm_out_of_the_way()
+
 				#Pickup Object
 				self.pickup_object()
 
@@ -346,10 +359,12 @@ class Abbe_Table_Sync(object):
 
 		data = self._last_object_pickup
 		try:
+			self._head.set_pan(0.7)
 			self._grippers.open(True)
 			self.go_to_relative_position(float(data["x"]),float(data["y"]),False, True) #move left arm to pickup location
 			self._drop_left_arm_to_pickup_height(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
 			self._grippers.close(True)
+			self.scene.remove_world_object("object" + str(self._object_count - 1)) #remove object from rviz
 			self._ik.set_left(float(0.5),float(0.5),0.1) #just above drop off point
 			self._grippers.open(True)
 		except:
