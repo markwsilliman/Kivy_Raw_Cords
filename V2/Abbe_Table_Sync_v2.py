@@ -75,6 +75,7 @@ class Abbe_Table_Sync(object):
 	_object_already_added_to_moveit = []
 	_last_object_type = False
 	_last_object_pose = False
+	_last_object_pickup = False
 
 	def __init__(self):
 		self._ik = Abbe_IK()
@@ -129,6 +130,8 @@ class Abbe_Table_Sync(object):
 				self._objectapi()
 				#Draw the object in RVIZ
 				self.draw_collision_object_in_rviz()
+				#Pickup Object
+				self.pickup_object()
 
 		except:
 			print "check for new object: last object is false"
@@ -209,8 +212,6 @@ class Abbe_Table_Sync(object):
 		if _c == '5':
 			print "go to leading point"
 			self.go_to_leading_point()
-		if _c == '9':
-			self.pickup_object()
 
 		if(not (_c == 'w' or _c == 'a' or _c == 's' or _c == 'd')):
 			 return False
@@ -340,52 +341,25 @@ class Abbe_Table_Sync(object):
 		self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
 		self._object_count = self._object_count + 1
 
-	def draw_leading_point(self,x,y,orientation_in_radians):
-		#TODO delete this function
-
-		p = PoseStamped()
-		p.header.frame_id = self.robot.get_planning_frame()
-
-		p.pose.position.z = -0.175 + (0.095 / 2)
-
-		try:
-			tmp_pos = self._abbe_three_points_matrix.determine_a_relative_point(float(x),float(y))
-			p.pose.position.x = tmp_pos[0]
-			p.pose.position.y = tmp_pos[1]
-
-			quaternion = tf.transformations.quaternion_from_euler(0,0,orientation_in_radians)
-
-			p.pose.orientation.x = quaternion[0]
-			p.pose.orientation.y = quaternion[1]
-			p.pose.orientation.z = quaternion[2]
-			p.pose.orientation.w = quaternion[3]
-
-			self.scene.add_box("object" + str(self._object_count),p,(0.08, 0.14, 0.095)) #0.72 ... is the size of the object
-			self._object_count = self._object_count + 1
-
-		except:
-			print "draw_leading_point: failed"
-
 	def pickup_object(self):
-		url = self._server + "/touch_json_last_object_pickup.php"
-		response = urllib.urlopen(url)
-		data = json.loads(response.read())
+		#TODO pass RFID and pickup id? (need new)
+
+		data = self._last_object_pickup
 		try:
-			#TODO move right arm straight up first to avoid colis
-			self.go_to_relative_position(1,1,True) #get right hand out of the way
 			self._grippers.open(True)
 			self.go_to_relative_position(float(data["x"]),float(data["y"]),False, True) #move left arm to pickup location
 			self._drop_left_arm_to_pickup_height(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
 			self._grippers.close(True)
-			self.go_to_relative_position(0,0,False, True)
-
-
+			self._ik.set_left(float(0.5),float(0.5),0.1) #just above drop off point
+			self._grippers.open(True)
 		except:
 			print "last object is false"
 
 	def _objectapi(self):
+		pickup_url = self._server + "/touch_json_last_object_pickup.php?objectapi_id=" +  str(self._last_rfid_value())
+		response = urllib.urlopen(pickup_url)
+		self._last_object_pickup = json.loads(response.read())
 		url = self._server + "/objectapi/?objectapi_id=" + str(self._last_rfid_value())
-		print url
 		response = urllib.urlopen(url)
 		data = json.loads(response.read())
 		#open left gripper
