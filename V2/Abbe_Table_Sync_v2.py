@@ -73,6 +73,8 @@ class Abbe_Table_Sync(object):
 	_right_arm_rotation = 0
 	_object_count = 0
 	_object_already_added_to_moveit = []
+	_last_object_type = False
+	_last_object_pose = False
 
 	def __init__(self):
 		self._ik = Abbe_IK()
@@ -104,6 +106,7 @@ class Abbe_Table_Sync(object):
 		response = urllib.urlopen(url)
 		data = json.loads(response.read())
 		try:
+			self._last_object_pose = data
 			x = float(data["x"])
 			y = float(data["y"])
 
@@ -117,8 +120,15 @@ class Abbe_Table_Sync(object):
 				self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
 
 				#TODO check for new RFID value and import everything to moveit
-				self.draw_leading_point(data["x"],data["y"],data["orientation_in_radians"])
+
+				#Move the right arm out of the way
+				self.move_right_arm_up_with_same_radians_and_xy(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
 				self._get_right_arm_out_of_the_way()
+
+				#Detect everything there is to know about the object
+				self._objectapi()
+				#Draw the object in RVIZ
+				self.draw_collision_object_in_rviz()
 
 		except:
 			print "check for new object: last object is false"
@@ -148,8 +158,11 @@ class Abbe_Table_Sync(object):
 		p.header.frame_id = self.robot.get_planning_frame()
 		p.pose.position.x = 0.28 + (0.72/2)
 		p.pose.position.y = 0
-		p.pose.position.z = -0.175 - (thickness_of_table/2)
+		p.pose.position.z = self.height_of_table() - (thickness_of_table/2)
 		self.scene.add_box("table",p,(0.72, 1.2, thickness_of_table))
+
+	def height_of_table(self):
+		return -0.175
 
 	def _onKeypress(self,event):
 		_c = event.char
@@ -303,7 +316,32 @@ class Abbe_Table_Sync(object):
 		except:
 			print "last object is false"
 
+	def draw_collision_object_in_rviz(self):
+		p = PoseStamped()
+		p.header.frame_id = self.robot.get_planning_frame()
+
+		p.pose.position.z = self.height_of_table() + (float(self._last_object_type["size"]["h"]) / 2)
+
+		#determine point relative to robot's pose
+		tmp_pos = self._abbe_three_points_matrix.determine_a_relative_point(float(self._last_object_pose["x"]),float(self._last_object_pose["y"]))
+
+		#TODO offset by float(self._last_object_type["transformation"]["x_offset"]) and y_offset relative to orientation_in_radians!
+
+		p.pose.position.x = tmp_pos[0]
+		p.pose.position.y = tmp_pos[1]
+
+		quaternion = tf.transformations.quaternion_from_euler(0,0,float(self._last_object_pose["orientation_in_radians"]))
+
+		p.pose.orientation.x = quaternion[0]
+		p.pose.orientation.y = quaternion[1]
+		p.pose.orientation.z = quaternion[2]
+		p.pose.orientation.w = quaternion[3]
+
+		self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
+		self._object_count = self._object_count + 1
+
 	def draw_leading_point(self,x,y,orientation_in_radians):
+		#TODO delete this function
 
 		p = PoseStamped()
 		p.header.frame_id = self.robot.get_planning_frame()
@@ -322,8 +360,7 @@ class Abbe_Table_Sync(object):
 			p.pose.orientation.z = quaternion[2]
 			p.pose.orientation.w = quaternion[3]
 
-
-			self.scene.add_box("cup" + str(self._object_count),p,(0.08, 0.14, 0.095)) #0.72 ... is the size of the object
+			self.scene.add_box("object" + str(self._object_count),p,(0.08, 0.14, 0.095)) #0.72 ... is the size of the object
 			self._object_count = self._object_count + 1
 
 		except:
@@ -345,6 +382,19 @@ class Abbe_Table_Sync(object):
 
 		except:
 			print "last object is false"
+
+	def _objectapi(self):
+		url = self._server + "/objectapi/?objectapi_id=" + str(self._last_rfid_value())
+		print url
+		response = urllib.urlopen(url)
+		data = json.loads(response.read())
+		#open left gripper
+		self._last_object_type = data
+
+
+	def _last_rfid_value(self):
+		#TODO change this
+		return "C66A1190-87D7-4C98-A7EC-C509FEE39C8B"
 
 	def _go_to_position(self,_tmp_x,_tmp_y,x_per, force_right = False, force_left = False):
 		_prioritize_left_hand = True
@@ -383,11 +433,16 @@ class Abbe_Table_Sync(object):
 	def _default_height(self):
 		return 0.2
 
+	def move_right_arm_up_with_same_radians_and_xy(self,radians_for_rfid = 0):
+		pose = self._ik.get_pose('right')
+		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self._default_height(),0,radians_for_rfid):
+			print "right failed to go up (move_right_arm_up_with_same_radians_and_xy)"
+
 	def _point_rfid_reader_down_on_right_arm(self,radians_for_rfid = 0):
 
 		pose = self._ik.get_pose('right')
 		temp_height = 0.1
-		print "Radians for rfid is: " + str(radians_for_rfid)
+		#print "Radians for rfid is: " + str(radians_for_rfid)
 		#TODO change height from 0.2 to 0 and the last 0 to -0.2 or correct value
 
 		#to avoid colis turn prior to dropping
@@ -419,9 +474,6 @@ class Abbe_Table_Sync(object):
 				print "Left arm failed to drop"
 
 	def _get_right_arm_out_of_the_way(self):
-		pose = self._ik.get_pose('right')
-		if not self._ik.set_right(float(pose.x),float(pose.y),self._default_height()):
-			print "couldnt go up first"
 		if not self._ik.set_right(float(0.5),float(-0.5),self._default_height()):
 			print "couldnt go out of the way first"
 
