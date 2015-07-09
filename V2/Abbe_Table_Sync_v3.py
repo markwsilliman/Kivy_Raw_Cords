@@ -67,6 +67,7 @@ class Abbe_Table_Sync(object):
 	_drop_off_cord_y = 0.5
 	_drop_off_cord_z = 0.1
 
+	_z_offset_above_table_to_scan_rfid_at = 0.175 #note this height does NOT take into account the length of the gripper nor RFID scanner!  So if you use a taller RFID scanner you'll need a different value etc.
 	_abbe_three_points_matrix = False
 	_ik = False
 	_tkinter = False
@@ -139,8 +140,6 @@ class Abbe_Table_Sync(object):
 
 				self.go_to_relative_position(float(data["x"]),float(data["y"]),True)
 				self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
-
-				#TODO check for new RFID value and import everything to moveit
 
 				#Detect everything there is to know about the object
 				self._objectapi()
@@ -378,8 +377,6 @@ class Abbe_Table_Sync(object):
 		coordinates_of_last_object_with_offset = self.determine_center_of_object()
 		tmp_pos = self._abbe_three_points_matrix.determine_a_relative_point(float(coordinates_of_last_object_with_offset[0]),float(coordinates_of_last_object_with_offset[1]))
 
-		#TODO offset by float(self._last_object_type["transformation"]["x_offset"]) and y_offset relative to orientation_in_radians!
-
 		p.pose.position.x = tmp_pos[0]
 		p.pose.position.y = tmp_pos[1]
 
@@ -406,8 +403,6 @@ class Abbe_Table_Sync(object):
 		y_offset = 0
 		if(float(self._last_object_type["grasp"]["y_offset"]) != 0):
 			y_offset = float(self._last_object_type["grasp"]["y_offset"]) / float(self._abbe_three_points_matrix.ret_height_of_screen())
-
-		#TODO z offset
 
 		radians = float(self._last_object_pose["orientation_in_radians"])
 
@@ -503,14 +498,14 @@ class Abbe_Table_Sync(object):
 		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),float(pose.z),0,radians_for_rfid):
 			print "failed to turn prior to going down"
 
-		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),0,0,radians_for_rfid):
+		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_offset_above_table_to_scan_rfid_at,0,radians_for_rfid):
 			print "right failed to point rfid down at this radians... should try opposite here with correct offsets"
 			#if self._ik.set_right_rfid_down(float(pose.x),float(pose.y),0,0,radians_for_rfid - math.pi):
 			#	print "opposite orientation success"
 			#	return True
 			#print "opposite failed as well"
 			return False
-		print "RFID is down"
+		#print "RFID is down"
 		return True
 
 	def _drop_left_arm_to_pickup_height(self, orient_radians, z_value_for_pickup):
