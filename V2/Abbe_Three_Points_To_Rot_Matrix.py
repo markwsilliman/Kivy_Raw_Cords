@@ -126,6 +126,12 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 
 		self._calc_cord_positions_for_y_slope()
 
+	def ret_width_of_screen(self):
+		return self._length_of_x_slope
+
+	def ret_height_of_screen(self):
+		return self._length_of_y_slope
+
 	
 	def _calc_cord_positions_for_y_slope(self):
 		if not self.qc_cords():
