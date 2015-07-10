@@ -142,11 +142,6 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 			print "length of y slope: " + str(self._length_of_y_slope)
 	
 	def determine_a_relative_point(self,x_per,y_per):
-		if(x_per < 0 or x_per > 1 or y_per < 0 or y_per > 1):
-			if(self._print_test_output):
-				print "passed relative percents invalid"
-			return False
-
 		if not self.qc_cords():
 			return False
 
