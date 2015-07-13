@@ -60,20 +60,26 @@ from sensor_msgs.msg import Range
 from Abbe_Three_Points_To_Rot_Matrix import Abbe_Three_Points_To_Rot_Matrix
 
 class Abbe_Table_Sync(object):
-	_server = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com" #CHANGE THIS TO YOUR SERVER'S DOMAIN
+	#CHANGE THIS TO YOUR SERVER'S DOMAIN
+	_server = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com"
+
+	#All of the following units are meters
 
 	#Custom values to offset x & y coordinates in meters - this makes it easier to fix slightly inaccurate config files
-	_screen_x_offset = -0.003
-	_screen_y_offset = -0.021
+	_screen_x_offset = -0.003 #if your X coordinates are slightly off (RELATIVE TO SCREEN; NOT ROBOT!) tweak this
+	_screen_y_offset = -0.021 #if your Y coordinates are slightly off (RELATIVE TO SCREEN; NOT ROBOT!) tweak this
+	_height_of_rfid_scanner = 0.075 #What is the height of your RFID reader (only measure the distance below the gripper)
+	_z_height_of_gripper = 0.1 #Height of gripper.  Change this if you aren't using the stock grippers
+	_height_of_table = -0.175 #Note: This is the relative height of the table compared to the bottom of Baxter (excluding the stand!).  Mine is negative because the table is lower than than the base of baxter (regardless of the stand & wheels which are lower than the table but don't influence the math.).
 
-	#The following 3 values control where objects should be dropped off
+	#The following 3 values control where objects should be dropped off by the left arm
 	_drop_off_cord_x = 0.5
 	_drop_off_cord_y = 0.5
 	_drop_off_cord_z = 0.1
 
-	_z_height_of_gripper = 0.1
-	_z_offset_above_table_to_scan_rfid_at = False
-	_height_of_rfid_scanner = 0.075
+	#Review function self.draw_table_in_rviz for more custom values related to the dimensions / pose of your table
+
+	#You shouldn't need to modify any of the following defaults
 	_abbe_three_points_matrix = False
 	_ik = False
 	_tkinter = False
@@ -93,78 +99,97 @@ class Abbe_Table_Sync(object):
 	_head = False
 
 	def __init__(self):
-		#set height for RFID scanner to read at
-		self._z_offset_above_table_to_scan_rfid_at = self._z_height_of_gripper + self._height_of_rfid_scanner
-
+		#Setup inverse kinematics
 		self._ik = Abbe_IK()
+		#Emotions are exclusively so kids think the robot is alive...
 		self._abbe_emotions = Abbe_Emotions()
 
-		print "enabling grippers"
+		#enable the grippers
 		self._grippers = Abbe_Gripper()
-
+		#enable the head (only for kids enterainment)
 		self._head = baxter_interface.Head()
 
-
-		#move it
+		#enable move it
 		self.robot = moveit_commander.RobotCommander()
 		self.scene = moveit_commander.PlanningSceneInterface()
 
+		#if you don't sleep for a couple seconds you'll get errors that the scene or robot doesn't exist
 		print "sleeping for 2 seconds for moveit scene"
 		rospy.sleep(2)
 
+		#add the table to rviz
 		self.draw_table_in_rviz()
-
-		self._ik = Abbe_IK()
+		#abbe_three_points_matrix controls the transformations of poses on the screen to poses relative to the robot.  Keep in mind that the screen is almost never perfectly parallel to the robot's pose.  Rotation matrix is used to compensate.  The transposition is calculated once by move the grippers to 3 corners of the screen.  Then a config file (threepoints.config) is created.  This config file is valid as long as you don't move the table or robot.
 		self._abbe_three_points_matrix = Abbe_Three_Points_To_Rot_Matrix()
-
+		#check if threepoints.config exists.  If no, prompt the user to calibrate the screen's pose.
 		self._require_configuration()
 		#note: if the config file doesn't exist yet the init() script will never get past this point
 
 		while not rospy.is_shutdown():
+			#check if a new object has been added to the table
 			self._check_for_new_object_on_table()
 			time.sleep(5)
 
-	def _check_for_new_object_on_table(self):
-		url = self._server + "/touch_json_last_object.php"
+	def get_json_from_server(self,script_url):
+		url = self._server + "/" + script_url
 		response = urllib.urlopen(url)
-		data = json.loads(response.read())
+		return json.loads(response.read())
 
+	def turn_head(self,right):
+		if right:
+			self._head.set_pan(-0.7)
+		else:
+			self._head.set_pan(0.7)
+
+	def _check_for_new_object_on_table(self):
+		data = self.get_json_from_server("touch_json_last_object.php")
+
+		#False = no valid 3 point pose found
 		if data == False:
 			return False
 
-		if "x" in data:
-			self._last_object_pose = data
-			data["y"] = float(data["y"]) + float(self._screen_y_offset / self._abbe_three_points_matrix.ret_height_of_screen())
-			data["x"] = float(data["x"]) + float(self._screen_x_offset / self._abbe_three_points_matrix.ret_width_of_screen())
+		self._last_object_pose = data
+		#_screen_x_offset & _screen_y_offset are manually set above and allow you to tweak an imperfect calibration
+		data["y"] = float(data["y"]) + float(self._screen_y_offset / self._abbe_three_points_matrix.ret_height_of_screen())
+		data["x"] = float(data["x"]) + float(self._screen_x_offset / self._abbe_three_points_matrix.ret_width_of_screen())
 
-			pose = [data["x"],data["y"]]
-			if pose in self._object_already_added_to_moveit:
-				print "check for new object: already imported"
-			else:
-				self._object_already_added_to_moveit.append(pose)
-				#read the RFID
-
-				self._head.set_pan(-0.7)
-
-				rfid_pose = self.determine_object_rfid_pose(data["x"],data["y"],data["orientation_in_radians"])
-				self.go_to_relative_position(float(rfid_pose[0]),float(rfid_pose[1]),True)
-
-				self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
-
-				#Detect everything there is to know about the object
-				self._objectapi()
-				#Draw the object in RVIZ
-				self.draw_collision_object_in_rviz()
-
-				#Move the right arm out of the way
-				self.move_right_arm_up_with_same_radians_and_xy(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
-				self._get_right_arm_out_of_the_way()
-
-				#Pickup Object
-				self.pickup_object()
-
+		pose = [data["x"],data["y"]]
+		#Was this pose already imported?  If yes, ignore it.
+		if pose in self._object_already_added_to_moveit:
+			print "check for new object: already imported"
 		else:
-			print "check for new object: last object is false"
+			#prevent duplicates by adding pose to already completed list
+			self._object_already_added_to_moveit.append(pose)
+
+			#Step 1: read the RFID
+
+			#turn head towards right arm
+			self.turn_head(True)
+
+			#determine the relative pose of the RFID.
+			rfid_pose = self.determine_object_rfid_pose(data["x"],data["y"],data["orientation_in_radians"])
+			#go to pose (but way above table)
+			self.go_to_relative_position(float(rfid_pose[0]),float(rfid_pose[1]),True)
+			#turn to the right orientation and drop to RFID reading height
+			self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
+
+			#Detect everything there is to know about the object from the API
+			self._objectapi()
+
+			print "Adding a new " + str(self._last_object_type["nickname"]) + " to RVIZ"
+
+			#Draw the object in RVIZ
+			self.draw_collision_object_in_rviz()
+
+			#Move the right arm out of the way (2 steps)
+			#First move it up without rotation to avoid collision with object
+			self.move_right_arm_up_with_same_radians_and_xy(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
+			#Now that we're above the table get the arm out of the way
+			self._get_right_arm_out_of_the_way()
+
+			#Pickup Object
+			#TODO implement pickup object
+			#self.pickup_object()
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -186,6 +211,7 @@ class Abbe_Table_Sync(object):
 			self._tkinter.mainloop()
 
 	def draw_table_in_rviz(self):
+		#draw the table in rviz.  You'll likely need to tweak the following values for your table.
 		p = PoseStamped()
 		thickness_of_table = 0.025 #was 0.795
 		p.header.frame_id = self.robot.get_planning_frame()
@@ -195,12 +221,12 @@ class Abbe_Table_Sync(object):
 		self.scene.add_box("table",p,(0.72, 1.2, thickness_of_table))
 
 	def height_of_table(self):
-		return -0.175
+		return self._height_of_table
 
 	def _onKeypress(self,event):
 		_c = event.char
 		
-		#changing speed?
+		#when calibrating it's convinient to be able to change the distance each arm moves at any given time (t being the greatest and y being the smallest)
 		if _c == 't':
 			self._move_arm_offset = 0.1
 		if _c == 'g':
@@ -209,35 +235,11 @@ class Abbe_Table_Sync(object):
 			self._move_arm_offset = 0.01
 		if _c == 'y':
 			self._move_arm_offset = 0.003
+		#m saves a point
 		if _c == 'm':
 			self.save_point()
-		if _c == 'u':
-			self._draw_parameter()
-		if _c == 'j':
-			self._go_to_center()
-		if _c == 'k':
-			self._go_to_center_x_bottom_y()
-		if _c == 'l':
-			self._go_to_left_x_center_y()
-		if _c == '0':
-			self._point_arms_straight_down()
-		if _c == '1':
-			print "will open in 3 seconds"
-			time.sleep(3)
-			self._grippers.open(False)
-		if _c == '2':
-			print "will close in 5 seconds"
-			time.sleep(5)
-			self._grippers.close(False)
-		if _c == '3':
-			print "will open in 3 seconds"
-			time.sleep(3)
-			self._grippers.open(True)
-		if _c == '4':
-			print "will close in 5 seconds"
-			time.sleep(5)
-			self._grippers.close(True)
 
+		#movement of either are is done with WASD like a video game
 		if(not (_c == 'w' or _c == 'a' or _c == 's' or _c == 'd')):
 			 return False
 		
@@ -272,53 +274,28 @@ class Abbe_Table_Sync(object):
 			if not self._ik.set_left(float(x),float(y),float(self.height_of_table()) + float(self._z_height_of_gripper) + float(offset_of_gripper_above_table)):
 				print "left failed to point down at pose"
 			else:
-				print "success left arm at:"
-				print self._ik.get_pose("left")
+				print "success left arm"
 		else:
 			if not self._ik.set_right(float(x),float(y),float(self.height_of_table()) + float(self._z_height_of_gripper) + float(offset_of_gripper_above_table)):
 				print "right failed to point down at pose"	
 			else:
-				print "success right arm at:"
-				print self._ik.get_pose("right")
+				print "success right arm"
 		
 		self._currently_moving = False
-
-	def _draw_parameter(self):
-		print "going to 0,0"
-		self.go_to_relative_position(0,0)
-		print "arrived ... sleeping for 2"
-		time.sleep(2)
-		print "going to 1,0"
-		self.go_to_relative_position(1,0)
-		print "arrived ... sleeping for 2"
-		time.sleep(2)
-		print "going to 1,1"
-		self.go_to_relative_position(1,1)
-		print "arrived ... sleeping for 2"
-		time.sleep(2)
-		print "going to 0,1"
-		self.go_to_relative_position(0,1)
-		print "arrived .. done"
-
-	def _go_to_center(self):
-		self.go_to_relative_position(0.5,0.5)
-
-	def _go_to_center_x_bottom_y(self):
-		self.go_to_relative_position(0.5,0)
-
-	def _go_to_left_x_center_y(self):
-		self.go_to_relative_position(0,0.5)
 
 	def save_point(self):
 		if self._move_left_arm:
 			self._move_left_arm = False
 			_pos = self._ik.get_pose('left')
-			print "saved"
-			print "Now let's move the right arm to 1,0 (bottom,right) ... press m ... and then after that 1,1 (top,right) and press m"
+			print "0,0 (bottom, left) saved"
+			print "Move the right arm to 1,0 (bottom,right) and press m to save that point."
 			self._abbe_three_points_matrix.add_cord(_pos.x,_pos.y)			
 		else:
 			_pos = self._ik.get_pose('right')
 			print "saved"
+			if self._abbe_three_points_matrix.count_cords() == 2:
+				print "Finally move the right arm to 1,1 (top,right) and press m to complete the calibration."
+
 			self._abbe_three_points_matrix.add_cord(_pos.x,_pos.y)
 
 	def go_to_relative_position(self,x_per,y_per, force_right = False, force_left = False):
@@ -404,17 +381,10 @@ class Abbe_Table_Sync(object):
 		pre_rotated_matrix = [[pre_rotated_x],[pre_rotated_y]]
 		post_rotated_matrix = numpy.dot(rotMatrix,pre_rotated_matrix)
 
-		print "self._last_object_pose"
-		print self._last_object_pose
-		print "post_rotated_matrix"
-		print post_rotated_matrix
 
 
 		ret = [float(post_rotated_matrix[0][0]) + x,float(post_rotated_matrix[1][0])+y,self.height_of_table() + self._last_object_type["grasp"]["z_offset"],self._last_object_type["grasp"]["yaw"]]
-		print "Change in X: "
-		print str(float(ret[0]) - float(self._last_object_pose["x"]))
-		print "Change in Y:"
-		print str(float(ret[1]) - float(self._last_object_pose["y"]))
+
 		return ret
 
 	def determine_object_rfid_pose(self,x,y,orientation_in_radians):
@@ -423,14 +393,12 @@ class Abbe_Table_Sync(object):
 		y = float(y)
 
 		#in meters below but they'll be converted to %s
-		x_offset = 0.15 #0.08
+		x_offset = 0.15
 		y_offset = 0.0
 
 		#The x & y coordinates are percentages of the screen width.  The offsets are in meters so we need to covert these to percents as well (of screen).
 		if(x_offset != 0):
-			print "screen width: " + str(self._abbe_three_points_matrix.ret_width_of_screen())
 			x_offset = float(x_offset) / float(self._abbe_three_points_matrix.ret_width_of_screen())
-			print "x offset: " + str(x_offset)
 
 		if(y_offset != 0):
 			y_offset = float(y_offset) / float(self._abbe_three_points_matrix.ret_height_of_screen())
@@ -475,11 +443,7 @@ class Abbe_Table_Sync(object):
 
 
 	def _objectapi(self):
-		url = self._server + "/objectapi/?objectapi_id=" + str(self._last_rfid_value())
-		response = urllib.urlopen(url)
-		data = json.loads(response.read())
-		#open left gripper
-		self._last_object_type = data
+		self._last_object_type = self.get_json_from_server("/objectapi/?objectapi_id=" + str(self._last_rfid_value()))
 
 
 	def _last_rfid_value(self):
@@ -521,7 +485,7 @@ class Abbe_Table_Sync(object):
 		return True
 
 	def _default_height(self):
-		return 0.2
+		return float(self.height_of_table()) + float(0.375)
 
 	def move_right_arm_up_with_same_radians_and_xy(self,radians_for_rfid = 0):
 		pose = self._ik.get_pose('right')
@@ -536,11 +500,11 @@ class Abbe_Table_Sync(object):
 		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),float(pose.z),0,radians_for_rfid):
 			print "failed to turn prior to going down"
 
-		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_offset_above_table_to_scan_rfid_at,0,radians_for_rfid):
+		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid):
 			print "right failed to point rfid down at this radians... should try opposite here with correct offsets: " + str(radians_for_rfid)
 			if radians_for_rfid >= math.pi:
 				#TODO offset for distance between rfid scanner when rotated
-				if self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_offset_above_table_to_scan_rfid_at,0,radians_for_rfid - math.pi):
+				if self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid - math.pi):
 					print "opposite orientation success"
 					return True
 				print "opposite failed as well"

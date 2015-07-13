@@ -29,6 +29,9 @@ class Abbe_Three_Points_To_Rot_Matrix(object):
 		# To start off the robot must know where three of the corners of the screen are.  This takes some time and must be done with laser pointers.  Therefore it saves a config file with the configuration after you do it once.  After this config file is created it'll load those settings so you don't need to repeat the process.  As long as you haven't moved the robot or the screen this will work.
 		self._import_config_file_if_exists()
 
+	def count_cords(self):
+		return len(self._cords)
+
 	def add_cord(self,x,y):
 		if len(self._cords) == 0:
 			#intentionally backwards because it's relative to screen.  Not robot
