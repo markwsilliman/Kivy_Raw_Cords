@@ -362,7 +362,7 @@ class Abbe_Table_Sync(object):
 		p.pose.orientation.w = quaternion[3]
 
 		#add this to an array of objects
-		self._objects_on_table.append([self._object_count,self._last_object_type,self._last_object_pose])
+		self._objects_on_table.append([self._object_count,self._last_object_type,self._last_object_pose,0]) #final ,0 means that the object hasn't been removed from the table
 
 		self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
 		self._object_count = self._object_count + 1
@@ -442,6 +442,7 @@ class Abbe_Table_Sync(object):
 		self._drop_left_arm_to_pickup_height(self._abbe_three_points_matrix.calc_relative_radians_angle(self._objects_on_table[object_id][2]["orientation_in_radians"]) + pickup_pose[3] ,pickup_pose[2])
 		self._grippers.close(True)
 		self.scene.remove_world_object("object" + str(self._objects_on_table[object_id][0])) #remove object from rviz
+		self._objects_on_table[object_id][3] = 1 #mark object as deleted
 		self._ik.set_left(float(self._drop_off_cord_x),float(self._drop_off_cord_y),float(self._drop_off_cord_z)) #just above drop off point
 		self._grippers.open(True)
 
