@@ -80,6 +80,7 @@ class Abbe_Table_Sync(object):
 	#Review function self.draw_table_in_rviz for more custom values related to the dimensions / pose of your table
 
 	#You shouldn't need to modify any of the following defaults
+	_objects_on_table = []
 	_abbe_three_points_matrix = False
 	_ik = False
 	_tkinter = False
@@ -131,17 +132,21 @@ class Abbe_Table_Sync(object):
 			time.sleep(5)
 
 	def get_json_from_server(self,script_url):
+		#download information from the API
 		url = self._server + "/" + script_url
 		response = urllib.urlopen(url)
+		#convert json to python datatype
 		return json.loads(response.read())
 
 	def turn_head(self,right):
+		#which direction should we turn the head?
 		if right:
 			self._head.set_pan(-0.7)
 		else:
 			self._head.set_pan(0.7)
 
 	def _check_for_new_object_on_table(self):
+		#ask the server if a new object exists
 		data = self.get_json_from_server("touch_json_last_object.php")
 
 		#False = no valid 3 point pose found
@@ -189,7 +194,8 @@ class Abbe_Table_Sync(object):
 
 			#Pickup Object
 			#TODO implement pickup object
-			#self.pickup_object()
+			if self._object_count > 1:
+				self.pickup_object(1)
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -213,7 +219,7 @@ class Abbe_Table_Sync(object):
 	def draw_table_in_rviz(self):
 		#draw the table in rviz.  You'll likely need to tweak the following values for your table.
 		p = PoseStamped()
-		thickness_of_table = 0.025 #was 0.795
+		thickness_of_table = 0.025
 		p.header.frame_id = self.robot.get_planning_frame()
 		p.pose.position.x = 0.28 + (0.72/2)
 		p.pose.position.y = 0
@@ -284,6 +290,7 @@ class Abbe_Table_Sync(object):
 		self._currently_moving = False
 
 	def save_point(self):
+		#save the current pose when calibrating
 		if self._move_left_arm:
 			self._move_left_arm = False
 			_pos = self._ik.get_pose('left')
@@ -299,10 +306,12 @@ class Abbe_Table_Sync(object):
 			self._abbe_three_points_matrix.add_cord(_pos.x,_pos.y)
 
 	def go_to_relative_position(self,x_per,y_per, force_right = False, force_left = False):
+		#This function is required because the screen only knows the coordinates of the object relative to the screen.  Not relative to the robot.  This converts from the screen percentages to a robot pose.
 		pos = self._abbe_three_points_matrix.determine_a_relative_point(x_per,y_per)
 		return self._go_to_position(pos[0],pos[1],x_per,force_right,force_left)
 
 	def determine_center_of_object(self):
+		#This function is required for adding objects to RVIZ.  In practice it isn't convinient to add the 3 points directly in the middle of each object.  x_offset & y_offset allow you to add it any location and then offset (via the API) the location for the collision box & mesh.
 		#offsets are based on the orientation of the object so calculate the correct center of object coordinates by using rotation matrix
 		x = float(self._last_object_pose["x"])
 		y = float(self._last_object_pose["y"])
@@ -352,24 +361,27 @@ class Abbe_Table_Sync(object):
 		p.pose.orientation.z = quaternion[2]
 		p.pose.orientation.w = quaternion[3]
 
+		#add this to an array of objects
+		self._objects_on_table.append([self._object_count,self._last_object_type,self._last_object_pose])
+
 		self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
 		self._object_count = self._object_count + 1
 
-	def determine_object_pickup_pose(self):
+	def determine_object_pickup_pose(self,object_id):
 		#offsets are based on the orientation of the object so calculate the correct center of object coordinates by using rotation matrix
-		x = float(self._last_object_pose["x"])
-		y = float(self._last_object_pose["y"])
+		x = float(self._objects_on_table[object_id][2]["x"])
+		y = float(self._objects_on_table[object_id][2]["x"])
 
 		#The x & y coordinates are percentages of the screen width.  The offsets are in meters so we need to covert these to percents as well (of screen).
 		x_offset = 0
-		if(float(self._last_object_type["grasp"]["x_offset"]) != 0):
-			x_offset = float(self._last_object_type["grasp"]["x_offset"]) / float(self._abbe_three_points_matrix.ret_width_of_screen())
+		if(float(self._objects_on_table[object_id][1]["grasp"]["x_offset"]) != 0):
+			x_offset = float(self._objects_on_table[object_id][1]["grasp"]["x_offset"]) / float(self._abbe_three_points_matrix.ret_width_of_screen())
 
 		y_offset = 0
-		if(float(self._last_object_type["grasp"]["y_offset"]) != 0):
-			y_offset = float(self._last_object_type["grasp"]["y_offset"]) / float(self._abbe_three_points_matrix.ret_height_of_screen())
+		if(float(self._objects_on_table[object_id][1]["grasp"]["y_offset"]) != 0):
+			y_offset = float(self._objects_on_table[object_id][1]["grasp"]["y_offset"]) / float(self._abbe_three_points_matrix.ret_height_of_screen())
 
-		radians = float(self._last_object_pose["orientation_in_radians"])
+		radians = float(self._objects_on_table[object_id][2]["orientation_in_radians"])
 
 		#only the offset is rotated using x/y as the origin
 		pre_rotated_x = x_offset
@@ -383,7 +395,7 @@ class Abbe_Table_Sync(object):
 
 
 
-		ret = [float(post_rotated_matrix[0][0]) + x,float(post_rotated_matrix[1][0])+y,self.height_of_table() + self._last_object_type["grasp"]["z_offset"],self._last_object_type["grasp"]["yaw"]]
+		ret = [float(post_rotated_matrix[0][0]) + x,float(post_rotated_matrix[1][0])+y,self.height_of_table() + self._objects_on_table[object_id][1]["grasp"]["z_offset"],self._objects_on_table[object_id][1]["grasp"]["yaw"]]
 
 		return ret
 
@@ -392,6 +404,7 @@ class Abbe_Table_Sync(object):
 		x = float(x)
 		y = float(y)
 
+		#When an object is placed on the table we only know it's location and orientation.  Not it's identity.  Therefore all RFIDs must be on the same relative position of each object (relative to 3 points)
 		#in meters below but they'll be converted to %s
 		x_offset = 0.15
 		y_offset = 0.0
@@ -419,25 +432,16 @@ class Abbe_Table_Sync(object):
 		return [float(post_rotated_matrix[0][0]) + x,float(post_rotated_matrix[1][0]) + y]
 
 
-	def pickup_object(self):
-		self._head.set_pan(0.7) #point to left arm
+	def pickup_object(self,object_id):
+		self.turn_head(False) #point to left arm
 
-		pickup_pose = self.determine_object_pickup_pose()
-
-		#TODO comment the following test
-		'''
-		self.go_to_relative_position(float(self._last_object_pose['x']),float(self._last_object_pose['y']),False, True)
-		rospy.sleep(5)
-		self.go_to_relative_position(float(pickup_pose[0]),float(pickup_pose[1]),False, True) #move left arm to pickup location
-		rospy.sleep(5)
-		return True
-		'''
+		pickup_pose = self.determine_object_pickup_pose(object_id)
 
 		self._grippers.open(True) #open left gripper
 		self.go_to_relative_position(float(pickup_pose[0]),float(pickup_pose[1]),False, True) #move left arm to pickup location
-		self._drop_left_arm_to_pickup_height(self._abbe_three_points_matrix.calc_relative_radians_angle(self._last_object_pose["orientation_in_radians"]) + pickup_pose[3] ,pickup_pose[2])
+		self._drop_left_arm_to_pickup_height(self._abbe_three_points_matrix.calc_relative_radians_angle(self._objects_on_table[object_id][2]["orientation_in_radians"]) + pickup_pose[3] ,pickup_pose[2])
 		self._grippers.close(True)
-		self.scene.remove_world_object("object" + str(self._object_count - 1)) #remove object from rviz
+		self.scene.remove_world_object("object" + str(self._objects_on_table[object_id][0])) #remove object from rviz
 		self._ik.set_left(float(self._drop_off_cord_x),float(self._drop_off_cord_y),float(self._drop_off_cord_z)) #just above drop off point
 		self._grippers.open(True)
 
@@ -460,9 +464,7 @@ class Abbe_Table_Sync(object):
 			if(x_per > 0.5):
 				_prioritize_left_hand = False
 
-		#print "going to " + str(_tmp_x) + " " + str(_tmp_y)
 		if _prioritize_left_hand:
-			#print "priority left due to " + str(x_per)
 			if(not self._ik.set_left(_tmp_x,_tmp_y,self._default_height())):
 				print "left failed trying right..."
 				if force_left:
@@ -472,7 +474,6 @@ class Abbe_Table_Sync(object):
 					print "neither arm code reach position: x:" + str(_tmp_x) + " y: " + str(_tmp_y)
 					return False
 		else:
-			#print "priority right due to " + str(x_per)
 			if(not self._ik.set_right(_tmp_x,_tmp_y,self._default_height())):
 				print "right failed trying left..."
 				if force_right:
@@ -485,15 +486,17 @@ class Abbe_Table_Sync(object):
 		return True
 
 	def _default_height(self):
+		#height used to get the hands out of the way etc.
 		return float(self.height_of_table()) + float(0.375)
 
 	def move_right_arm_up_with_same_radians_and_xy(self,radians_for_rfid = 0):
+		#used to get RFID out of the way without rotating or moving (X/Y) the gripper
 		pose = self._ik.get_pose('right')
 		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self._default_height(),0,radians_for_rfid):
 			print "right failed to go up (move_right_arm_up_with_same_radians_and_xy)"
 
 	def _point_rfid_reader_down_on_right_arm(self,radians_for_rfid = 0):
-
+		#used to drop the RFID reader near the table height to read the RFID's value
 		pose = self._ik.get_pose('right')
 
 		#to avoid colis turn prior to dropping
@@ -503,7 +506,6 @@ class Abbe_Table_Sync(object):
 		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid):
 			print "right failed to point rfid down at this radians... should try opposite here with correct offsets: " + str(radians_for_rfid)
 			if radians_for_rfid >= math.pi:
-				#TODO offset for distance between rfid scanner when rotated
 				if self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid - math.pi):
 					print "opposite orientation success"
 					return True
@@ -513,8 +515,8 @@ class Abbe_Table_Sync(object):
 		return True
 
 	def _drop_left_arm_to_pickup_height(self, orient_radians, z_value_for_pickup):
+		#drops the left arm to the pickup height required to pickup the object (defined in the API)
 		pose = self._ik.get_pose('left')
-		#TODO orientation
 
 		if not self._ik.set_left_down_for_pickup(float(pose.x),float(pose.y),float(pose.z),0,orient_radians):
 			print "failed to turn prior to going down: " + str(orient_radians)
@@ -527,12 +529,12 @@ class Abbe_Table_Sync(object):
 				print "Left arm failed to drop"
 
 	def _get_right_arm_out_of_the_way(self):
+		#primarily so the left arm won't have problems with the left arm
 		if not self._ik.set_right(float(0.5),float(-0.5),self._default_height()):
 			print "couldnt go out of the way first"
 
 	def _point_arms_straight_down(self):
-
-		#print "End effectors must point down for calibration... sleeping for 2 seconds to make sure IK is live"
+		#End effectors must point down for calibration (so laser pointers are accurate)
 		time.sleep(2)
 		pose = self._ik.get_pose('left')
 
