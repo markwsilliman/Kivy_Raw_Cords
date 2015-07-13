@@ -25,8 +25,8 @@ class Abbe_Gripper(object):
 		self._gripper = Gripper('left')
 		self._gripper.calibrate()
         #don't want it to drop rfid reader so disabling right gripperq
-		self._gripper_right = Gripper('right')
-		self._gripper_right.calibrate()
+		#self._gripper_right = Gripper('right')
+		#self._gripper_right.calibrate()
 
 	def close(self,left=True):
 		if left:

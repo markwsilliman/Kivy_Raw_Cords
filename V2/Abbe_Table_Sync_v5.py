@@ -111,16 +111,11 @@ class Abbe_Table_Sync(object):
 
 		print "sleeping for 2 seconds for moveit scene"
 		rospy.sleep(2)
-		self._head.command_nod()
-		print "noded"
 
 		self.draw_table_in_rviz()
 
 		self._ik = Abbe_IK()
 		self._abbe_three_points_matrix = Abbe_Three_Points_To_Rot_Matrix()
-
-		print "Width of Screen: " + str(self._abbe_three_points_matrix.ret_width_of_screen())
-		print "Height of Screen: " + str(self._abbe_three_points_matrix.ret_height_of_screen())
 
 		self._require_configuration()
 		#note: if the config file doesn't exist yet the init() script will never get past this point
@@ -150,23 +145,8 @@ class Abbe_Table_Sync(object):
 				#read the RFID
 
 				self._head.set_pan(-0.7)
-				print "X: " + str(data["x"])
-				print "Y: " + str(data["y"])
-
-				##TODO (clean up) REMOVE THE FOLLOWING LINE AND UNCOMMENT THE SECTION BELOW
-
-
-				##TODO: Test: close down left gripper and test if this is pointing exactly in the middle of the leading point!
-				'''
-				self.go_to_relative_position(float(data["x"]),float(data["y"]),False,True)
-				pose = self._ik.get_pose('left')
-				if not self._ik.set_left(float(pose.x),float(pose.y),float(self.height_of_table()) + float(self._z_height_of_gripper) + float(0.02)):
-					print "left failed to point down at pose"
-				'''
-
 
 				rfid_pose = self.determine_object_rfid_pose(data["x"],data["y"],data["orientation_in_radians"])
-				print rfid_pose
 				self.go_to_relative_position(float(rfid_pose[0]),float(rfid_pose[1]),True)
 
 				self._point_rfid_reader_down_on_right_arm(self._abbe_three_points_matrix.calc_relative_radians_angle(data["orientation_in_radians"]))
