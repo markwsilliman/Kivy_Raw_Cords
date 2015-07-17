@@ -218,13 +218,29 @@ class Abbe_Table_Sync(object):
 
 	def draw_table_in_rviz(self):
 		#draw the table in rviz.  You'll likely need to tweak the following values for your table.
+
 		p = PoseStamped()
-		thickness_of_table = 0.025
+		p.header.frame_id = self.robot.get_planning_frame()
+		p.pose.position.x = 0.28 + (0.72/2) #0.28 is offset from center of robot to the front of the table.  0.72/2 is the distance to the center of the table
+		p.pose.position.y = 0
+		p.pose.position.z = self.height_of_table()  #0.791 is the Z value of the table (not relative to the robot like self.height_of_table returns)
+
+		quaternion = tf.transformations.quaternion_from_euler(0,0,float(math.pi / 2)) #turn table 90 degrees
+
+		p.pose.orientation.x = quaternion[0]
+		p.pose.orientation.y = quaternion[1]
+		p.pose.orientation.z = quaternion[2]
+		p.pose.orientation.w = quaternion[3]
+
+		self.scene.add_mesh("table",p,"mesh/table.stl")
+
+		#TODO remove all of the following!
+		p = PoseStamped()
 		p.header.frame_id = self.robot.get_planning_frame()
 		p.pose.position.x = 0.28 + (0.72/2)
 		p.pose.position.y = 0
-		p.pose.position.z = self.height_of_table() - (thickness_of_table/2)
-		self.scene.add_box("table",p,(0.72, 1.2, thickness_of_table))
+		p.pose.position.z = self.height_of_table() + (0.107 / 2.0) #half the height of the pot!
+		self.scene.add_mesh("pot",p,"mesh/pot.stl")
 
 	def height_of_table(self):
 		return self._height_of_table
