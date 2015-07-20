@@ -194,8 +194,8 @@ class Abbe_Table_Sync(object):
 
 			#Pickup Object
 			#TODO implement pickup object
-			#if self._object_count > 0:
-			#	self.pickup_object(self._object_count - 1)
+			if self._object_count > 0:
+				self.pickup_object(self._object_count - 1)
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -386,7 +386,7 @@ class Abbe_Table_Sync(object):
 	def determine_object_pickup_pose(self,object_id):
 		#offsets are based on the orientation of the object so calculate the correct center of object coordinates by using rotation matrix
 		x = float(self._objects_on_table[object_id][2]["x"])
-		y = float(self._objects_on_table[object_id][2]["x"])
+		y = float(self._objects_on_table[object_id][2]["y"])
 
 		#The x & y coordinates are percentages of the screen width.  The offsets are in meters so we need to covert these to percents as well (of screen).
 		x_offset = 0
