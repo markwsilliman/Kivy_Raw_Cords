@@ -194,8 +194,8 @@ class Abbe_Table_Sync(object):
 
 			#Pickup Object
 			#TODO implement pickup object
-			if self._object_count > 1:
-				self.pickup_object(1)
+			#if self._object_count > 0:
+			#	self.pickup_object(self._object_count - 1)
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -240,7 +240,7 @@ class Abbe_Table_Sync(object):
 		p.pose.position.x = 0.28 + (0.72/2)
 		p.pose.position.y = 0
 		p.pose.position.z = self.height_of_table() + (0.107 / 2.0) #half the height of the pot!
-		self.scene.add_mesh("pot",p,"mesh/pot.stl")
+		#self.scene.add_mesh("pot",p,"mesh/pot.stl") #TODO copy the pot logic for objects
 
 	def height_of_table(self):
 		return self._height_of_table
