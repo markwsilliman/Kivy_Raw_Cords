@@ -68,7 +68,7 @@ class Abbe_Table_Sync(object):
 	#Custom values to offset x & y coordinates in meters - this makes it easier to fix slightly inaccurate config files
 	_screen_x_offset = -0.003 #if your X coordinates are slightly off (RELATIVE TO SCREEN; NOT ROBOT!) tweak this
 	_screen_y_offset = -0.021 #if your Y coordinates are slightly off (RELATIVE TO SCREEN; NOT ROBOT!) tweak this
-	_height_of_rfid_scanner = 0.075 #What is the height of your RFID reader (only measure the distance below the gripper)
+	_height_of_rfid_scanner = 0.21 #What is the height of your RFID reader (only measure the distance below the gripper)
 	_z_height_of_gripper = 0.1 #Height of gripper.  Change this if you aren't using the stock grippers
 	_height_of_table = -0.175 #Note: This is the relative height of the table compared to the bottom of Baxter (excluding the stand!).  Mine is negative because the table is lower than than the base of baxter (regardless of the stand & wheels which are lower than the table but don't influence the math.).
 
@@ -194,8 +194,8 @@ class Abbe_Table_Sync(object):
 
 			#Pickup Object
 			#TODO implement pickup object
-			if self._object_count > 0:
-				self.pickup_object(self._object_count - 1)
+			#if self._object_count > 0:
+			#	self.pickup_object(self._object_count - 1)
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -504,7 +504,7 @@ class Abbe_Table_Sync(object):
 
 	def _default_height(self):
 		#height used to get the hands out of the way etc.
-		return float(self.height_of_table()) + float(0.375)
+		return float(self.height_of_table()) + float(0.5) #was 0.375
 
 	def move_right_arm_up_with_same_radians_and_xy(self,radians_for_rfid = 0):
 		#used to get RFID out of the way without rotating or moving (X/Y) the gripper
