@@ -234,14 +234,6 @@ class Abbe_Table_Sync(object):
 
 		self.scene.add_mesh("table",p,"mesh/table.stl")
 
-		#TODO remove all of the following!
-		p = PoseStamped()
-		p.header.frame_id = self.robot.get_planning_frame()
-		p.pose.position.x = 0.28 + (0.72/2)
-		p.pose.position.y = 0
-		p.pose.position.z = self.height_of_table() + (0.107 / 2.0) #half the height of the pot!
-		#self.scene.add_mesh("pot",p,"mesh/pot.stl") #TODO copy the pot logic for objects
-
 	def height_of_table(self):
 		return self._height_of_table
 
@@ -380,7 +372,11 @@ class Abbe_Table_Sync(object):
 		#add this to an array of objects
 		self._objects_on_table.append([self._object_count,self._last_object_type,self._last_object_pose,0]) #final ,0 means that the object hasn't been removed from the table
 
-		self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
+
+		self.scene.add_mesh("object" + str(self._object_count),p,"mesh/" + str(self._last_object_type["stl_file"]) + ".stl") #TODO get file from server if you don't have it locally
+
+		#If you'd prefer to use a box instead of an STL file use the following
+		#self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
 		self._object_count = self._object_count + 1
 
 	def determine_object_pickup_pose(self,object_id):
