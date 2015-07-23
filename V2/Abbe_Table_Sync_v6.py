@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-# Note the following must be running in a different tab and Baxter must be enabled
+# Note the following must be already running in a different tab and Baxter must be enabled
 # roslaunch baxter_moveit_config demo_baxter.launch
+# Note 2: Subfolder ./stl/ must be writable. E.g. chmod 777 ./stl/  This allows this script to download STL files from the API on demand.
+# Note 3: The RFID reader must be reading (typically via an automatic mode)
 
 import math
 import random
@@ -19,6 +21,8 @@ import json
 import moveit_commander
 import time
 import urllib, json
+import os.path
+import httplib
 from abbe_gripper import Abbe_Gripper
 from abbe_emotion import Abbe_Emotions
 
@@ -26,6 +30,7 @@ from moveit_msgs.msg import (
     AttachedCollisionObject,
     CollisionObject,
     PlanningScene,
+	ObjectColor,
     Grasp,
     GripperTranslation,
 )
@@ -98,6 +103,7 @@ class Abbe_Table_Sync(object):
 	_last_object_pose = False
 	_abbe_emotions = False
 	_head = False
+	_colors = dict()
 
 	def __init__(self):
 		#Setup inverse kinematics
@@ -112,7 +118,9 @@ class Abbe_Table_Sync(object):
 
 		#enable move it
 		self.robot = moveit_commander.RobotCommander()
+		self._planningscene = PlanningScene()
 		self.scene = moveit_commander.PlanningSceneInterface()
+		self.scene_pub = rospy.Publisher('planning_scene',PlanningScene)
 
 		#if you don't sleep for a couple seconds you'll get errors that the scene or robot doesn't exist
 		print "sleeping for 2 seconds for moveit scene"
@@ -194,8 +202,8 @@ class Abbe_Table_Sync(object):
 
 			#Pickup Object
 			#TODO implement pickup object
-			#if self._object_count > 0:
-			#	self.pickup_object(self._object_count - 1)
+			if self._object_count > 0:
+				self.pickup_object(self._object_count - 1)
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -232,7 +240,30 @@ class Abbe_Table_Sync(object):
 		p.pose.orientation.z = quaternion[2]
 		p.pose.orientation.w = quaternion[3]
 
-		self.scene.add_mesh("table",p,"mesh/table.stl")
+		self.set_object_color("table",1.71,0.79,0.22)
+
+		self.scene.add_mesh("table",p,"stl/table.stl")
+
+	def set_object_color(self,id,r,g,b):
+		color = ObjectColor()
+
+		color.id = str(id)
+
+		color.color.r = float(r)
+		color.color.g = float(g)
+		color.color.b = float(b)
+		color.color.a = 1.0
+
+		self._colors[str(id)] = color
+
+		self._planningscene.is_diff = True
+
+		for color in self._colors.values():
+			self._planningscene.object_colors.append(color)
+
+		self.scene_pub.publish(self._planningscene)
+
+
 
 	def height_of_table(self):
 		return self._height_of_table
@@ -319,7 +350,7 @@ class Abbe_Table_Sync(object):
 		return self._go_to_position(pos[0],pos[1],x_per,force_right,force_left)
 
 	def determine_center_of_object(self):
-		#This function is required for adding objects to RVIZ.  In practice it isn't convinient to add the 3 points directly in the middle of each object.  x_offset & y_offset allow you to add it any location and then offset (via the API) the location for the collision box & mesh.
+		#This function is required for adding objects to RVIZ.  In practice it isn't convinient to add the 3 points directly in the middle of each object.  x_offset & y_offset allow you to add it any location and then offset (via the API) the location for the collision box & stl.
 		#offsets are based on the orientation of the object so calculate the correct center of object coordinates by using rotation matrix
 		x = float(self._last_object_pose["x"])
 		y = float(self._last_object_pose["y"])
@@ -372,12 +403,29 @@ class Abbe_Table_Sync(object):
 		#add this to an array of objects
 		self._objects_on_table.append([self._object_count,self._last_object_type,self._last_object_pose,0]) #final ,0 means that the object hasn't been removed from the table
 
+		#download stl file if it doesn't exist yet (from API server); in practice we'd expect millions of different STL files to be on a CDN and constantly introducing new files so can't rely on local storage.
+		self.download_stl_file_from_api_if_its_not_local(str(self._last_object_type["stl_file"]))
 
-		self.scene.add_mesh("object" + str(self._object_count),p,"mesh/" + str(self._last_object_type["stl_file"]) + ".stl") #TODO get file from server if you don't have it locally
+		#add the stl file to the scene as a collision object
+		self.set_object_color("object" + str(self._object_count),self._last_object_type["color"]["r"],self._last_object_type["color"]["g"],self._last_object_type["color"]["b"])
+		self.scene.add_mesh("object" + str(self._object_count),p,"stl/" + str(self._last_object_type["stl_file"]) + ".stl") #TODO get file from server if you don't have it locally
 
 		#If you'd prefer to use a box instead of an STL file use the following
 		#self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
 		self._object_count = self._object_count + 1
+
+	def download_stl_file_from_api_if_its_not_local(self,stl_file):
+		if os.path.isfile("stl/" + str(stl_file) + ".stl"):
+			return True
+
+		conn = httplib.HTTPConnection(self._server[7:],80) #[7: removes http://
+		conn.request('GET',"/stl/" + str(stl_file) + ".stl")
+		resp = conn.getresponse()
+		data = resp.read()
+		with open("stl/" + str(stl_file) + ".stl","wb") as f:
+			f.write(data)
+		conn.close()
+
 
 	def determine_object_pickup_pose(self,object_id):
 		#offsets are based on the orientation of the object so calculate the correct center of object coordinates by using rotation matrix
@@ -404,8 +452,6 @@ class Abbe_Table_Sync(object):
 
 		pre_rotated_matrix = [[pre_rotated_x],[pre_rotated_y]]
 		post_rotated_matrix = numpy.dot(rotMatrix,pre_rotated_matrix)
-
-
 
 		ret = [float(post_rotated_matrix[0][0]) + x,float(post_rotated_matrix[1][0])+y,self.height_of_table() + self._objects_on_table[object_id][1]["grasp"]["z_offset"],self._objects_on_table[object_id][1]["grasp"]["yaw"]]
 
@@ -455,6 +501,7 @@ class Abbe_Table_Sync(object):
 		self._grippers.close(True)
 		self.scene.remove_world_object("object" + str(self._objects_on_table[object_id][0])) #remove object from rviz
 		self._objects_on_table[object_id][3] = 1 #mark object as deleted
+		self._move_left_arm_straight_up(self._default_height())
 		self._ik.set_left(float(self._drop_off_cord_x),float(self._drop_off_cord_y),float(self._drop_off_cord_z)) #just above drop off point
 		self._grippers.open(True)
 
@@ -466,9 +513,8 @@ class Abbe_Table_Sync(object):
 	def _last_rfid_value(self):
 		#TODO change this and read
 		rospy.sleep(2) #2 seconds to read RFID
-		if self._object_count > 0: #TODO remove hack
-			return "C66A1190-87D7-4C98-A7EC-C509FEE39C8C" #Pot
-		return "C66A1190-87D7-4C98-A7EC-C509FEE39C8C" #Kettle
+		rfid_json = self.get_json_from_server("/rfidread/")
+		return rfid_json
 
 	def _go_to_position(self,_tmp_x,_tmp_y,x_per, force_right = False, force_left = False):
 		_prioritize_left_hand = True
@@ -503,7 +549,7 @@ class Abbe_Table_Sync(object):
 
 	def _default_height(self):
 		#height used to get the hands out of the way etc.
-		return float(self.height_of_table()) + float(0.5) #was 0.375
+		return float(self.height_of_table()) + float(0.6) #was 0.375
 
 	def move_right_arm_up_with_same_radians_and_xy(self,radians_for_rfid = 0):
 		#used to get RFID out of the way without rotating or moving (X/Y) the gripper
@@ -548,6 +594,12 @@ class Abbe_Table_Sync(object):
 		#primarily so the left arm won't have problems with the left arm
 		if not self._ik.set_right(float(0.5),float(-0.5),self._default_height()):
 			print "couldnt go out of the way first"
+
+	def _move_left_arm_straight_up(self,z):
+		pose = self._ik.get_pose('left')
+
+		if not self._ik.set_left(float(pose.x),float(pose.y),z):
+			print "left couldnt go up"
 
 	def _point_arms_straight_down(self):
 		#End effectors must point down for calibration (so laser pointers are accurate)

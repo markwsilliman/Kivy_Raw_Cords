@@ -232,7 +232,7 @@ class Abbe_Table_Sync(object):
 		p.pose.orientation.z = quaternion[2]
 		p.pose.orientation.w = quaternion[3]
 
-		self.scene.add_mesh("table",p,"mesh/table.stl")
+		self.scene.add_mesh("table",p,"stl/table.stl")
 
 		#TODO remove all of the following!
 		p = PoseStamped()
@@ -240,7 +240,7 @@ class Abbe_Table_Sync(object):
 		p.pose.position.x = 0.28 + (0.72/2)
 		p.pose.position.y = 0
 		p.pose.position.z = self.height_of_table() + (0.107 / 2.0) #half the height of the pot!
-		#self.scene.add_mesh("pot",p,"mesh/pot.stl") #TODO copy the pot logic for objects
+		#self.scene.add_mesh("pot",p,"stl/pot.stl") #TODO copy the pot logic for objects
 
 	def height_of_table(self):
 		return self._height_of_table
@@ -327,7 +327,7 @@ class Abbe_Table_Sync(object):
 		return self._go_to_position(pos[0],pos[1],x_per,force_right,force_left)
 
 	def determine_center_of_object(self):
-		#This function is required for adding objects to RVIZ.  In practice it isn't convinient to add the 3 points directly in the middle of each object.  x_offset & y_offset allow you to add it any location and then offset (via the API) the location for the collision box & mesh.
+		#This function is required for adding objects to RVIZ.  In practice it isn't convinient to add the 3 points directly in the middle of each object.  x_offset & y_offset allow you to add it any location and then offset (via the API) the location for the collision box & stl.
 		#offsets are based on the orientation of the object so calculate the correct center of object coordinates by using rotation matrix
 		x = float(self._last_object_pose["x"])
 		y = float(self._last_object_pose["y"])
