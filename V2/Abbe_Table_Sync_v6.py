@@ -194,8 +194,8 @@ class Abbe_Table_Sync(object):
 
 			#Pickup Object
 			#TODO implement pickup object
-			if self._object_count > 0:
-				self.pickup_object(self._object_count - 1)
+			#if self._object_count > 0:
+			#	self.pickup_object(self._object_count - 1)
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -464,9 +464,11 @@ class Abbe_Table_Sync(object):
 
 
 	def _last_rfid_value(self):
-		#TODO change this
+		#TODO change this and read
 		rospy.sleep(2) #2 seconds to read RFID
-		return "C66A1190-87D7-4C98-A7EC-C509FEE39C8B"
+		if self._object_count > 0: #TODO remove hack
+			return "C66A1190-87D7-4C98-A7EC-C509FEE39C8C" #Pot
+		return "C66A1190-87D7-4C98-A7EC-C509FEE39C8D" #Kettle
 
 	def _go_to_position(self,_tmp_x,_tmp_y,x_per, force_right = False, force_left = False):
 		_prioritize_left_hand = True
