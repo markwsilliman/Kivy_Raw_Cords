@@ -468,7 +468,7 @@ class Abbe_Table_Sync(object):
 		rospy.sleep(2) #2 seconds to read RFID
 		if self._object_count > 0: #TODO remove hack
 			return "C66A1190-87D7-4C98-A7EC-C509FEE39C8C" #Pot
-		return "C66A1190-87D7-4C98-A7EC-C509FEE39C8D" #Kettle
+		return "C66A1190-87D7-4C98-A7EC-C509FEE39C8C" #Kettle
 
 	def _go_to_position(self,_tmp_x,_tmp_y,x_per, force_right = False, force_left = False):
 		_prioritize_left_hand = True
