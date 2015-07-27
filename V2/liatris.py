@@ -1,6 +1,9 @@
 #!/usr/bin/env python
-# Note the following must be already running in a different tab and Baxter must be enabled
+# For those using Baxter:
+# The following must be already running in a different tab and Baxter must be enabled
 # roslaunch baxter_moveit_config demo_baxter.launch
+
+# Regardless of which robot you are using:
 # Note 2: Subfolder ./stl/ must be writable. E.g. chmod 777 ./stl/  This allows this script to download STL files from the API on demand.
 # Note 3: The RFID reader must be reading (typically via an automatic mode)
 
@@ -33,7 +36,6 @@ from moveit_msgs.msg import (
     GripperTranslation,
 )
 
-
 from tf import transformations
 from std_msgs.msg import Header, UInt16
 from geometry_msgs.msg import (
@@ -53,11 +55,6 @@ from trajectory_msgs.msg import(
     JointTrajectoryPoint
 )
 
-import baxter_interface
-from baxter_core_msgs.srv import (
-    SolvePositionIK,
-    SolvePositionIKRequest,
-)
 from sensor_msgs.msg import Range
 from Liatris_Three_Points_To_Rot_Matrix import Liatris_Three_Points_To_Rot_Matrix
 
@@ -140,7 +137,7 @@ class Liatris(object):
 
 	def _check_for_new_object_on_table(self):
 		#ask the server if a new object exists
-		data = self.get_json_from_server("touch_json_last_object.php")
+		data = self.get_json_from_server("touchread/")
 
 		#False = no valid 3 point pose found
 		if data == False:
@@ -170,6 +167,11 @@ class Liatris(object):
 
 			#Detect everything there is to know about the object from the API
 			self._objectapi()
+
+			if self._last_object_type == "does not exist":
+				print "RFID returned false"
+				#TODO GET ARM OUT OF THE WAY REGARDLESS
+				return False
 
 			print "Adding a new " + str(self._last_object_type["nickname"]) + " to RVIZ"
 
@@ -487,13 +489,13 @@ class Liatris(object):
 
 
 	def _objectapi(self):
-		self._last_object_type = self.get_json_from_server("/objectapi/?objectapi_id=" + str(self._last_rfid_value()))
+		self._last_object_type = self.get_json_from_server("objectapi/?objectapi_id=" + str(self._last_rfid_value()))
 
 
 	def _last_rfid_value(self):
 		#TODO change this and read
 		rospy.sleep(2) #2 seconds to read RFID
-		rfid_json = self.get_json_from_server("/rfidread/")
+		rfid_json = self.get_json_from_server("rfidread/")
 		return rfid_json
 
 	def _go_to_position(self,_tmp_x,_tmp_y,x_per, force_right = False, force_left = False):
