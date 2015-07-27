@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 # For those using Baxter:
-# The following must be already running in a different tab and Baxter must be enabled
+# Baxter must be enable first:
+# rosrun baxter_tools enable_robot.py -e
+# The following must be already in a different tab prior to running liatris.py:
 # roslaunch baxter_moveit_config demo_baxter.launch
 
 # Regardless of which robot you are using:
 # Note 2: Subfolder ./stl/ must be writable. E.g. chmod 777 ./stl/  This allows this script to download STL files from the API on demand.
 # Note 3: The RFID reader must be reading (typically via an automatic mode)
+
+# Run liatris:
+# python liatris.py
 
 
 import math
@@ -389,7 +394,7 @@ class Liatris(object):
 
 		#add the stl file to the scene as a collision object
 		self.set_object_color("object" + str(self._object_count),self._last_object_type["color"]["r"],self._last_object_type["color"]["g"],self._last_object_type["color"]["b"])
-		self.scene.add_mesh("object" + str(self._object_count),p,"stl/" + str(self._last_object_type["stl_file"]) + ".stl") #TODO get file from server if you don't have it locally
+		self.scene.add_mesh("object" + str(self._object_count),p,"stl/" + str(self._last_object_type["stl_file"]) + ".stl")
 
 		#If you'd prefer to use a box instead of an STL file use the following
 		#self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
@@ -492,7 +497,6 @@ class Liatris(object):
 
 
 	def _last_rfid_value(self):
-		#TODO change this and read
 		rospy.sleep(2) #2 seconds to read RFID
 		rfid_json = self.get_json_from_server("rfidread/")
 		return rfid_json
