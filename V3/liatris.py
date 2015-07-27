@@ -7,6 +7,7 @@
 # Note 2: Subfolder ./stl/ must be writable. E.g. chmod 777 ./stl/  This allows this script to download STL files from the API on demand.
 # Note 3: The RFID reader must be reading (typically via an automatic mode)
 
+
 import math
 import random
 import rospy
