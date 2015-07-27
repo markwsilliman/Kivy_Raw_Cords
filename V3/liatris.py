@@ -452,7 +452,7 @@ class Liatris(object):
 
 		#When an object is placed on the table we only know it's location and orientation.  Not it's identity.  Therefore all RFIDs must be on the same relative position of each object (relative to 3 points)
 		#in meters below but they'll be converted to %s
-		x_offset = 0.15
+		x_offset = 0.25
 		y_offset = 0.0
 
 		#The x & y coordinates are percentages of the screen width.  The offsets are in meters so we need to covert these to percents as well (of screen).
