@@ -56,7 +56,7 @@ from trajectory_msgs.msg import(
 )
 
 from sensor_msgs.msg import Range
-from Liatris_Three_Points_To_Rot_Matrix import Liatris_Three_Points_To_Rot_Matrix
+from liatris_Three_Points_To_Rot_Matrix import Liatris_Three_Points_To_Rot_Matrix
 
 class Liatris(object):
 	#THE FOLLOWING VALUES MAY NEED TO BE CHANGED ----------------------------------------
@@ -112,7 +112,7 @@ class Liatris(object):
 		self.scene_pub = rospy.Publisher('planning_scene',PlanningScene)
 
 		#if you don't sleep for a couple seconds you'll get errors that the scene or robot doesn't exist
-		print "Sleeping for 2 seconds to load moveit scene."
+		print "Sleeping for 2 seconds to load MoveIt scene."
 		rospy.sleep(2)
 
 		#Add the table to MoveIt
@@ -187,7 +187,7 @@ class Liatris(object):
 		if not self._liatris_three_points_matrix.does_config_file_exist():
 			#TkInter is just an easy way to capture key stroaks in python.
 			self._point_arms_straight_down()
-			print "Opening TkInter window to capture key strokes.  Make sure it stays in focus."
+
 			self._tkinter = tk.Tk()
 			#Size doesn't matter
 			self._tkinter.geometry('300x200')
@@ -195,10 +195,12 @@ class Liatris(object):
 			self._tkinter.bind('<KeyPress>', self._onKeypress)
 
 			#instructions on how to configure robot
+			print "INSTRUCTIONS FOR CALIBRATION"
+			print "Opening TkInter window to capture key strokes.  Make sure it stays in focus."
 			print "Moving left arm first.  Set to orientation 0,0 (relative to the robot, bottom, left corner of screen) on screen.";
-			print "Movement Speed... T: fast, G: Medium, B: Slow";
-			print "Move with W,A,S,D like an old school video game";
-			print "Save Pose... M";
+			print "Move arm with W,A,S,D like an old school video game.";
+			print "Movement Speed can be adjusted with the following keys.  T: Fast, G: Medium, B: Slow, Y: Slowest";
+			print "To save a point.  Press M.";
 			self._tkinter.mainloop()
 
 	def draw_table_in_rviz(self):
@@ -316,7 +318,7 @@ class Liatris(object):
 		else:
 			_pos = self._robot.ik.get_pose('right')
 			print "saved"
-			if self._liatris_three_points_matrix.count_cords() == 2:
+			if self._liatris_three_points_matrix.count_cords() == 1:
 				print "Finally move the right arm to 1,1 (top,right) and press m to complete the calibration."
 
 			self._liatris_three_points_matrix.add_cord(_pos.x,_pos.y)
@@ -591,7 +593,7 @@ class Liatris(object):
 			print "right failed to point down at pose"
 			exit()
 
-		print "ready for calibration"
+		print "Ready for calibration."
 
 if __name__ == '__main__':
     rospy.init_node('Liatris', anonymous=True)
