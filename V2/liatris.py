@@ -14,7 +14,7 @@ import numpy
 import cv2
 import tf
 import copy
-from abbe_ik import Abbe_IK
+from robot.baxter.baxter import Robot
 import threading
 import Tkinter as tk
 import json
@@ -23,8 +23,6 @@ import time
 import urllib, json
 import os.path
 import httplib
-from abbe_gripper import Abbe_Gripper
-from abbe_emotion import Abbe_Emotions
 
 from moveit_msgs.msg import (
     AttachedCollisionObject,
@@ -50,7 +48,6 @@ from geometry_msgs.msg import (
 
 import yaml
 
-
 from trajectory_msgs.msg import(
     JointTrajectory,
     JointTrajectoryPoint
@@ -65,6 +62,7 @@ from sensor_msgs.msg import Range
 from Liatris_Three_Points_To_Rot_Matrix import Liatris_Three_Points_To_Rot_Matrix
 
 class Liatris(object):
+	#THE FOLLOWING VALUES MAY NEED TO BE CHANGED ----------------------------------------
 	#CHANGE THIS TO YOUR SERVER'S DOMAIN
 	_server = "http://ec2-52-25-236-123.us-west-2.compute.amazonaws.com"
 
@@ -84,6 +82,8 @@ class Liatris(object):
 
 	#Review function self.draw_table_in_rviz for more custom values related to the dimensions / pose of your table
 
+	#END THE FOLLOWING VALUES MAY NEED TO BE CHANGED ----------------------------------------
+
 	#You shouldn't need to modify any of the following defaults
 	_objects_on_table = []
 	_three_points_matrix = False
@@ -101,20 +101,12 @@ class Liatris(object):
 	_object_already_added_to_moveit = []
 	_last_object_type = False
 	_last_object_pose = False
-	_abbe_emotions = False
 	_head = False
 	_colors = dict()
 
 	def __init__(self):
-		#Setup inverse kinematics
-		self._ik = Abbe_IK()
-		#Emotions are exclusively so kids think the robot is alive...
-		self._abbe_emotions = Abbe_Emotions()
-
-		#enable the grippers
-		self._grippers = Abbe_Gripper()
-		#enable the head (only for kids enterainment)
-		self._head = baxter_interface.Head()
+		#All of the robot's logic is decoupled and found in ./robot/[nameofrobot]/
+		self._robot = Robot()
 
 		#enable move it
 		self.robot = moveit_commander.RobotCommander()
@@ -146,13 +138,6 @@ class Liatris(object):
 		#convert json to python datatype
 		return json.loads(response.read())
 
-	def turn_head(self,right):
-		#which direction should we turn the head?
-		if right:
-			self._head.set_pan(-0.7)
-		else:
-			self._head.set_pan(0.7)
-
 	def _check_for_new_object_on_table(self):
 		#ask the server if a new object exists
 		data = self.get_json_from_server("touch_json_last_object.php")
@@ -175,9 +160,6 @@ class Liatris(object):
 			self._object_already_added_to_moveit.append(pose)
 
 			#Step 1: read the RFID
-
-			#turn head towards right arm
-			self.turn_head(True)
 
 			#determine the relative pose of the RFID.
 			rfid_pose = self.determine_object_rfid_pose(data["x"],data["y"],data["orientation_in_radians"])
@@ -289,9 +271,9 @@ class Liatris(object):
 			 return False
 		
 		if(self._move_left_arm):
-			pose = self._ik.get_pose('left')
+			pose = self._robot.ik.get_pose('left')
 		else:
-			pose = self._ik.get_pose('right')
+			pose = self._robot.ik.get_pose('right')
 		
 		y = pose.y
 		x = pose.x
@@ -316,12 +298,12 @@ class Liatris(object):
 		offset_of_gripper_above_table = 0.02
 
 		if(self._move_left_arm):
-			if not self._ik.set_left(float(x),float(y),float(self.height_of_table()) + float(self._z_height_of_gripper) + float(offset_of_gripper_above_table)):
+			if not self._robot.ik.set_left(float(x),float(y),float(self.height_of_table()) + float(self._z_height_of_gripper) + float(offset_of_gripper_above_table)):
 				print "left failed to point down at pose"
 			else:
 				print "success left arm"
 		else:
-			if not self._ik.set_right(float(x),float(y),float(self.height_of_table()) + float(self._z_height_of_gripper) + float(offset_of_gripper_above_table)):
+			if not self._robot.ik.set_right(float(x),float(y),float(self.height_of_table()) + float(self._z_height_of_gripper) + float(offset_of_gripper_above_table)):
 				print "right failed to point down at pose"	
 			else:
 				print "success right arm"
@@ -332,12 +314,12 @@ class Liatris(object):
 		#save the current pose when calibrating
 		if self._move_left_arm:
 			self._move_left_arm = False
-			_pos = self._ik.get_pose('left')
+			_pos = self._robot.ik.get_pose('left')
 			print "0,0 (bottom, left) saved"
 			print "Move the right arm to 1,0 (bottom,right) and press m to save that point."
 			self._liatris_three_points_matrix.add_cord(_pos.x,_pos.y)
 		else:
-			_pos = self._ik.get_pose('right')
+			_pos = self._robot.ik.get_pose('right')
 			print "saved"
 			if self._liatris_three_points_matrix.count_cords() == 2:
 				print "Finally move the right arm to 1,1 (top,right) and press m to complete the calibration."
@@ -491,19 +473,17 @@ class Liatris(object):
 
 
 	def pickup_object(self,object_id):
-		self.turn_head(False) #point to left arm
-
 		pickup_pose = self.determine_object_pickup_pose(object_id)
 
-		self._grippers.open(True) #open left gripper
+		self._robot.gripper.open(True) #open left gripper
 		self.go_to_relative_position(float(pickup_pose[0]),float(pickup_pose[1]),False, True) #move left arm to pickup location
 		self._drop_left_arm_to_pickup_height(self._liatris_three_points_matrix.calc_relative_radians_angle(self._objects_on_table[object_id][2]["orientation_in_radians"]) + pickup_pose[3] ,pickup_pose[2])
-		self._grippers.close(True)
+		self._robot.gripper.close(True)
 		self.scene.remove_world_object("object" + str(self._objects_on_table[object_id][0])) #remove object from rviz
 		self._objects_on_table[object_id][3] = 1 #mark object as deleted
 		self._move_left_arm_straight_up(self._default_height())
-		self._ik.set_left(float(self._drop_off_cord_x),float(self._drop_off_cord_y),float(self._drop_off_cord_z)) #just above drop off point
-		self._grippers.open(True)
+		self._robot.ik.set_left(float(self._drop_off_cord_x),float(self._drop_off_cord_y),float(self._drop_off_cord_z)) #just above drop off point
+		self._robot.gripper.open(True)
 
 
 	def _objectapi(self):
@@ -527,21 +507,21 @@ class Liatris(object):
 				_prioritize_left_hand = False
 
 		if _prioritize_left_hand:
-			if(not self._ik.set_left(_tmp_x,_tmp_y,self._default_height())):
+			if(not self._robot.ik.set_left(_tmp_x,_tmp_y,self._default_height())):
 				print "left failed trying right..."
 				if force_left:
 					print "right hand prohibited"
 					return False
-				if(not self._ik.set_right(_tmp_x,_tmp_y,self._default_height())):
+				if(not self._robot.ik.set_right(_tmp_x,_tmp_y,self._default_height())):
 					print "neither arm code reach position: x:" + str(_tmp_x) + " y: " + str(_tmp_y)
 					return False
 		else:
-			if(not self._ik.set_right(_tmp_x,_tmp_y,self._default_height())):
+			if(not self._robot.ik.set_right(_tmp_x,_tmp_y,self._default_height())):
 				print "right failed trying left..."
 				if force_right:
 					print "left hand prohibited"
 					return False
-				if(not self._ik.set_left(_tmp_x,_tmp_y,self._default_height())):
+				if(not self._robot.ik.set_left(_tmp_x,_tmp_y,self._default_height())):
 					print "neither arm code reach position: x:" + str(_tmp_x) + " y: " + str(_tmp_y)
 					return False		
 
@@ -553,22 +533,22 @@ class Liatris(object):
 
 	def move_right_arm_up_with_same_radians_and_xy(self,radians_for_rfid = 0):
 		#used to get RFID out of the way without rotating or moving (X/Y) the gripper
-		pose = self._ik.get_pose('right')
-		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self._default_height(),0,radians_for_rfid):
+		pose = self._robot.ik.get_pose('right')
+		if not self._robot.ik.set_right_rfid_down(float(pose.x),float(pose.y),self._default_height(),0,radians_for_rfid):
 			print "right failed to go up (move_right_arm_up_with_same_radians_and_xy)"
 
 	def _point_rfid_reader_down_on_right_arm(self,radians_for_rfid = 0):
 		#used to drop the RFID reader near the table height to read the RFID's value
-		pose = self._ik.get_pose('right')
+		pose = self._robot.ik.get_pose('right')
 
 		#to avoid colis turn prior to dropping
-		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),float(pose.z),0,radians_for_rfid):
+		if not self._robot.ik.set_right_rfid_down(float(pose.x),float(pose.y),float(pose.z),0,radians_for_rfid):
 			print "failed to turn prior to going down"
 
-		if not self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid):
+		if not self._robot.ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid):
 			print "right failed to point rfid down at this radians... should try opposite here with correct offsets: " + str(radians_for_rfid)
 			if radians_for_rfid >= math.pi:
-				if self._ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid - math.pi):
+				if self._robot.ik.set_right_rfid_down(float(pose.x),float(pose.y),self.height_of_table() + self._z_height_of_gripper + self._height_of_rfid_scanner,0,radians_for_rfid - math.pi):
 					print "opposite orientation success"
 					return True
 				print "opposite failed as well"
@@ -578,41 +558,41 @@ class Liatris(object):
 
 	def _drop_left_arm_to_pickup_height(self, orient_radians, z_value_for_pickup):
 		#drops the left arm to the pickup height required to pickup the object (defined in the API)
-		pose = self._ik.get_pose('left')
+		pose = self._robot.ik.get_pose('left')
 
-		if not self._ik.set_left_down_for_pickup(float(pose.x),float(pose.y),float(pose.z),0,orient_radians):
+		if not self._robot.ik.set_left_down_for_pickup(float(pose.x),float(pose.y),float(pose.z),0,orient_radians):
 			print "failed to turn prior to going down: " + str(orient_radians)
-			if not self._ik.set_left_down_for_pickup(float(pose.x),float(pose.y),float(pose.z),0,orient_radians - math.pi):
+			if not self._robot.ik.set_left_down_for_pickup(float(pose.x),float(pose.y),float(pose.z),0,orient_radians - math.pi):
 				print "failed to turn prior to going down opposite: " + str(orient_radians - math.pi)
 
-		if not self._ik.set_left_down_for_pickup(float(pose.x),float(pose.y),z_value_for_pickup,0,orient_radians):
+		if not self._robot.ik.set_left_down_for_pickup(float(pose.x),float(pose.y),z_value_for_pickup,0,orient_radians):
 			print "Left arm failed to drop"
-			if not self._ik.set_left_down_for_pickup(float(pose.x),float(pose.y),z_value_for_pickup,0,orient_radians - math.pi):
+			if not self._robot.ik.set_left_down_for_pickup(float(pose.x),float(pose.y),z_value_for_pickup,0,orient_radians - math.pi):
 				print "Left arm failed to drop"
 
 	def _get_right_arm_out_of_the_way(self):
 		#primarily so the left arm won't have problems with the left arm
-		if not self._ik.set_right(float(0.5),float(-0.5),self._default_height()):
+		if not self._robot.ik.set_right(float(0.5),float(-0.5),self._default_height()):
 			print "couldnt go out of the way first"
 
 	def _move_left_arm_straight_up(self,z):
-		pose = self._ik.get_pose('left')
+		pose = self._robot.ik.get_pose('left')
 
-		if not self._ik.set_left(float(pose.x),float(pose.y),z):
+		if not self._robot.ik.set_left(float(pose.x),float(pose.y),z):
 			print "left couldnt go up"
 
 	def _point_arms_straight_down(self):
 		#End effectors must point down for calibration (so laser pointers are accurate)
 		time.sleep(2)
-		pose = self._ik.get_pose('left')
+		pose = self._robot.ik.get_pose('left')
 
-		if not self._ik.set_left(float(pose.x),float(pose.y),self._default_height()):
+		if not self._robot.ik.set_left(float(pose.x),float(pose.y),self._default_height()):
 			print "left failed to point down at pose"
 			exit()
 
-		pose = self._ik.get_pose('right')
+		pose = self._robot.ik.get_pose('right')
 
-		if not self._ik.set_right(float(pose.x),float(pose.y),self._default_height()):
+		if not self._robot.ik.set_right(float(pose.x),float(pose.y),self._default_height()):
 			print "right failed to point down at pose"
 			exit()
 
