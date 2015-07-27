@@ -163,13 +163,16 @@ class Liatris(object):
 			#Detect everything there is to know about the object from the API
 			self._objectapi()
 
+			_ret = -1
+
 			if self._last_object_type == "does not exist":
 				print "RFID returned false"
 			else:
 				print "Adding a new " + str(self._last_object_type["nickname"]) + " to RVIZ"
 
 				#Draw the object in RVIZ
-				self.draw_collision_object_in_rviz()
+				_ret = self.draw_collision_object_in_rviz()
+
 
 			#Move the right arm out of the way (2 steps)
 			#First move it up without rotation to avoid collision with object
@@ -177,10 +180,8 @@ class Liatris(object):
 			#Now that we're above the table get the arm out of the way
 			self._get_right_arm_out_of_the_way()
 
-			#Pickup Object
-			#TODO implement pickup object
-			#if self._object_count > 0:
-			#	self.pickup_object(self._object_count - 1)
+			return _ret
+		return -1
 
 	def _require_configuration(self):
 		# If a config file (that tells transformation of touch screeen's vs robot's poses) already exists skip the configuration step
@@ -210,7 +211,7 @@ class Liatris(object):
 		p.header.frame_id = self.robot.get_planning_frame()
 		p.pose.position.x = 0.28 + (0.72/2) #0.28 is offset from center of robot to the front of the table.  0.72/2 is the distance to the center of the table
 		p.pose.position.y = 0
-		p.pose.position.z = self.height_of_table()  #0.791 is the Z value of the table (not relative to the robot like self.height_of_table returns)
+		p.pose.position.z = self.height_of_table()  #is the Z value of the table (not relative to the robot like self.height_of_table returns)
 
 		quaternion = tf.transformations.quaternion_from_euler(0,0,float(math.pi / 2)) #turn table 90 degrees
 
@@ -224,6 +225,7 @@ class Liatris(object):
 		self.scene.add_mesh("table",p,"stl/table.stl")
 
 	def set_object_color(self,id,r,g,b):
+		#defines the color of an object in MoveIt
 		color = ObjectColor()
 
 		color.id = str(id)
@@ -242,12 +244,11 @@ class Liatris(object):
 
 		self.scene_pub.publish(self._planningscene)
 
-
-
 	def height_of_table(self):
 		return self._height_of_table
 
 	def _onKeypress(self,event):
+		#Used for calibration only
 		_c = event.char
 		
 		#when calibrating it's convinient to be able to change the distance each arm moves at any given time (t being the greatest and y being the smallest)
@@ -392,8 +393,10 @@ class Liatris(object):
 		#If you'd prefer to use a box instead of an STL file use the following
 		#self.scene.add_box("object" + str(self._object_count),p,(float(self._last_object_type["size"]["l"]), float(self._last_object_type["size"]["w"]), float(self._last_object_type["size"]["h"]))) #0.72 ... is the size of the object
 		self._object_count = self._object_count + 1
+		return self._object_count - 1
 
 	def download_stl_file_from_api_if_its_not_local(self,stl_file):
+		#sync STL files to local if they don't exist
 		if os.path.isfile("stl/" + str(stl_file) + ".stl"):
 			return True
 
@@ -597,8 +600,13 @@ class Liatris(object):
 
 if __name__ == '__main__':
     rospy.init_node('Liatris', anonymous=True)
+
     lia = Liatris()
 
+	#Demo checks for a new object every second.  If one is found it picks it up and drops it off _drop_off_cord_x,_drop_off_cord_y_drop_off_cord_z defined above.
     while not rospy.is_shutdown():
-        lia._check_for_new_object_on_table()
-        rospy.sleep(5)
+        object_id = lia._check_for_new_object_on_table() #returns -1 if no object or RFID failed to read the value
+        if object_id >= 0:
+			lia.pickup_object(object_id) #pickup the object
+
+        rospy.sleep(1)
